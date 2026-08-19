@@ -26,6 +26,7 @@ REQUIRED_ROOT_FILES = (
 )
 REQUIRED_INTEGRATION_FILES = (
     "__init__.py",
+    "api.py",
     "config_flow.py",
     "const.py",
     "manifest.json",
@@ -51,9 +52,7 @@ def _load_json(path: Path) -> Any:
             return json.load(file_handle)
     except (OSError, json.JSONDecodeError) as err:
         relative_path = path.relative_to(ROOT)
-        raise ValueError(
-            f"Cannot load valid JSON from {relative_path}: {err}"
-        ) from err
+        raise ValueError(f"Cannot load valid JSON from {relative_path}: {err}") from err
 
 
 def _runtime_requirements() -> list[str]:

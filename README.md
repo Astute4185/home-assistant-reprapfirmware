@@ -70,9 +70,11 @@ custom_components/
 5. **Notifications and dashboard** — expose reliable state transitions and example automations/dashboard configuration.
 6. **Hardening** — timeouts, unavailable state, malformed responses, diagnostics, tests, and distribution readiness.
 
-## Current repository baseline
+## Current implementation status
 
-The repository currently contains the legal/project baseline and a minimal Home Assistant custom-integration scaffold. The configuration flow stores endpoint details but **does not yet validate or connect to the printer**. Network authentication and validation belong to the P0 API-client milestone.
+**P0 — API client implementation is present.** The integration now has an asynchronous RepRapFirmware HTTP client with session-key authentication, Object Model reads, G-code submission, command-reply retrieval, disconnect/reconnect handling, and config-flow connection validation. Unit and repository validation can be completed locally; live printer acceptance is required before P0 is considered complete.
+
+The Home Assistant device, coordinator, entities, machine-control buttons, macro entities, and notification/dashboard work remain later milestones.
 
 ## Disclaimer
 
@@ -133,4 +135,22 @@ scripts/smoke         Network-free Home Assistant import/API smoke test
 scripts/dependencies  pip dependency integrity and runtime dependency audit
 scripts/hassfest      Official Home Assistant hassfest validation via Docker
 scripts/workflow-lint GitHub Actions workflow validation
+scripts/p0-probe      Live P0 acceptance probe against a RepRapFirmware controller
 ```
+
+### P0 live acceptance probe
+
+After the normal validation gate passes, validate the API client against a real printer:
+
+```bash
+export RRF_PASSWORD='your-machine-password'
+scripts/p0-probe 192.168.1.50
+```
+
+For HTTPS or a non-default port:
+
+```bash
+scripts/p0-probe printer.local --https --port 443
+```
+
+If `RRF_PASSWORD` is not set, the probe prompts for the machine password without placing it in the command line. A successful P0 probe connects with a session key, reads `state.status`, sends `M115`, receives its firmware reply, and disconnects.

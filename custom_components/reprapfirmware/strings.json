@@ -4,7 +4,7 @@
     "step": {
       "user": {
         "title": "Connect to RepRapFirmware",
-        "description": "Configure a standalone RepRapFirmware printer. Connection validation will be added with the API client implementation.",
+        "description": "Configure a standalone RepRapFirmware printer. The connection and machine password are validated before the entry is created.",
         "data": {
           "host": "Host or IP address",
           "port": "Port",
@@ -20,6 +20,11 @@
           "name": "Name shown for this printer in Home Assistant."
         }
       }
+    },
+    "error": {
+      "cannot_connect": "Unable to connect to RepRapFirmware.",
+      "invalid_auth": "The RepRapFirmware machine password is invalid.",
+      "unknown": "Unexpected error while validating the RepRapFirmware connection."
     },
     "abort": {
       "already_configured": "This RepRapFirmware endpoint is already configured."

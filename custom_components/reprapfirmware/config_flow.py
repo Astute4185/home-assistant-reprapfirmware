@@ -2,20 +2,24 @@
 
 from __future__ import annotations
 
+import logging
+from contextlib import suppress
 from typing import Any
 
 import voluptuous as vol
-
 from homeassistant import config_entries
+from homeassistant.config_entries import ConfigFlowResult
 from homeassistant.const import CONF_HOST, CONF_NAME, CONF_PASSWORD, CONF_PORT
-from homeassistant.data_entry_flow import FlowResult
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-from .const import (
-    CONF_USE_SSL,
-    DEFAULT_NAME,
-    DEFAULT_PORT_HTTP,
-    DOMAIN,
+from .api import (
+    RepRapFirmwareAuthenticationError,
+    RepRapFirmwareClient,
+    RepRapFirmwareError,
 )
+from .const import CONF_USE_SSL, DEFAULT_NAME, DEFAULT_PORT_HTTP, DOMAIN
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class RepRapFirmwareConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -25,26 +29,47 @@ class RepRapFirmwareConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
-        """Handle the initial configuration step.
+    ) -> ConfigFlowResult:
+        """Handle the initial configuration step."""
+        errors: dict[str, str] = {}
 
-        Connection validation will be added with the P0 API client.
-        """
         if user_input is not None:
             host = user_input[CONF_HOST].strip()
             port = user_input[CONF_PORT]
-
-            await self.async_set_unique_id(f"{host.lower()}:{port}")
-            self._abort_if_unique_id_configured()
-
-            data = {
-                **user_input,
-                CONF_HOST: host,
-            }
-            return self.async_create_entry(
-                title=user_input.get(CONF_NAME) or host,
-                data=data,
+            client = RepRapFirmwareClient(
+                host=host,
+                port=port,
+                use_ssl=user_input[CONF_USE_SSL],
+                password=user_input[CONF_PASSWORD],
+                session=async_get_clientsession(self.hass),
             )
+
+            try:
+                await client.connect()
+                await client.get_model("state")
+            except RepRapFirmwareAuthenticationError:
+                errors["base"] = "invalid_auth"
+            except RepRapFirmwareError:
+                errors["base"] = "cannot_connect"
+            except Exception:  # noqa: BLE001
+                _LOGGER.exception("Unexpected error validating RepRapFirmware endpoint")
+                errors["base"] = "unknown"
+            finally:
+                with suppress(RepRapFirmwareError):
+                    await client.disconnect()
+
+            if not errors:
+                await self.async_set_unique_id(f"{host.lower()}:{port}")
+                self._abort_if_unique_id_configured()
+
+                data = {
+                    **user_input,
+                    CONF_HOST: host,
+                }
+                return self.async_create_entry(
+                    title=user_input.get(CONF_NAME) or host,
+                    data=data,
+                )
 
         schema = vol.Schema(
             {
@@ -58,4 +83,8 @@ class RepRapFirmwareConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             }
         )
 
-        return self.async_show_form(step_id="user", data_schema=schema)
+        return self.async_show_form(
+            step_id="user",
+            data_schema=schema,
+            errors=errors,
+        )
