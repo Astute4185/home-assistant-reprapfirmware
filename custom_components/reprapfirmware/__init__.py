@@ -6,14 +6,22 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_PORT, Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.typing import ConfigType
 
 from .api import RepRapFirmwareClient
 from .const import CONF_USE_SSL, DOMAIN
 from .coordinator import RepRapFirmwareCoordinator
+from .services import async_setup_services
 
-PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.BINARY_SENSOR]
+PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.BINARY_SENSOR, Platform.BUTTON]
 
 type RepRapFirmwareConfigEntry = ConfigEntry[RepRapFirmwareCoordinator]
+
+
+async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
+    """Set up RepRapFirmware integration-level service actions."""
+    async_setup_services(hass)
+    return True
 
 
 async def async_setup_entry(

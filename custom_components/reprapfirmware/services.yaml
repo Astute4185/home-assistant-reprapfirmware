@@ -1,0 +1,13 @@
+send_gcode:
+  fields:
+    device_id:
+      required: true
+      selector:
+        device:
+          integration: reprapfirmware
+    gcode:
+      required: true
+      example: M122
+      selector:
+        text:
+          multiline: true

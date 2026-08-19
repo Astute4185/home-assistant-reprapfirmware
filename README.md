@@ -160,3 +160,26 @@ If `RRF_PASSWORD` is not set, the probe prompts for the machine password without
 After `scripts/check-all` passes, copy or mount `custom_components/reprapfirmware` into a test Home Assistant configuration and restart Home Assistant. Add **RepRapFirmware** from **Settings → Devices & services** using the real printer connection details.
 
 P1 is accepted when one printer device is created and the online/status/job/temperature entities show live values without YAML configuration. When RepRapFirmware exposes `boards[0].uniqueId`, that hardware ID is used as the stable Home Assistant config-entry/device identity. While the printer is in an active or transitional state (`processing`, `paused`, `busy`, `pausing`, `resuming`, `cancelling`, `changingTool`, `simulating`, or `starting`), the coordinator polls every 5 seconds; otherwise it polls every 20 seconds. If communication is lost after setup, normal entities become unavailable and the Online binary sensor reports off while retry intervals back off up to 60 seconds.
+
+## P2 machine control
+
+P2 adds state-aware Home Assistant button entities for the standard printer controls:
+
+| Control | RepRapFirmware command | Available state |
+|---|---|---|
+| Home | `G28` | `idle` |
+| Pause | `M25` | `processing` |
+| Resume | `M24` | `paused` |
+| Cancel | `M0` | `processing`, `paused` |
+
+The integration also registers the advanced `reprapfirmware.send_gcode` action. It targets a RepRapFirmware device by Home Assistant `device_id` and can optionally return the RepRapFirmware command reply when the caller requests response data.
+
+```yaml
+action: reprapfirmware.send_gcode
+data:
+  device_id: YOUR_HOME_ASSISTANT_DEVICE_ID
+  gcode: M122
+response_variable: rrf_response
+```
+
+After each control or arbitrary G-code submission, the coordinator requests an immediate refresh so Home Assistant can reflect the resulting machine state without waiting for the normal polling interval.

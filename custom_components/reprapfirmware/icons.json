@@ -1,0 +1,23 @@
+{
+  "entity": {
+    "button": {
+      "home": {
+        "default": "mdi:home"
+      },
+      "pause": {
+        "default": "mdi:pause"
+      },
+      "resume": {
+        "default": "mdi:play"
+      },
+      "cancel": {
+        "default": "mdi:stop"
+      }
+    }
+  },
+  "services": {
+    "send_gcode": {
+      "service": "mdi:code-tags"
+    }
+  }
+}

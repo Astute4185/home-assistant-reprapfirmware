@@ -6,6 +6,9 @@ DOMAIN = "reprapfirmware"
 
 CONF_USE_SSL = "use_ssl"
 
+ATTR_GCODE = "gcode"
+SERVICE_SEND_GCODE = "send_gcode"
+
 DEFAULT_NAME = "RepRapFirmware"
 DEFAULT_PORT_HTTP = 80
 DEFAULT_PORT_HTTPS = 443
