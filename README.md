@@ -70,9 +70,11 @@ custom_components/
 5. **Notifications and dashboard** — expose reliable state transitions and example automations/dashboard configuration.
 6. **Hardening** — timeouts, unavailable state, malformed responses, diagnostics, tests, and distribution readiness.
 
-## Current repository baseline
+## Current implementation status
 
-The repository currently contains the legal/project baseline and a minimal Home Assistant custom-integration scaffold. The configuration flow stores endpoint details but **does not yet validate or connect to the printer**. Network authentication and validation belong to the P0 API-client milestone.
+**P1 — Home Assistant device implementation is present.** The integration now creates a DataUpdateCoordinator-backed Home Assistant device with online, status, job, progress, duration, remaining-time, layer, file-size, nozzle-temperature, nozzle-target, bed-temperature, and bed-target entities. The coordinator polls selected RepRapFirmware Object Model branches, uses a faster interval while the machine is active, and progressively backs off after communication failures.
+
+P0 API/session functionality remains the transport foundation. Machine-control buttons, arbitrary G-code actions, macro discovery, notification examples, and dashboard work remain later milestones.
 
 ## Disclaimer
 
@@ -133,4 +135,28 @@ scripts/smoke         Network-free Home Assistant import/API smoke test
 scripts/dependencies  pip dependency integrity and runtime dependency audit
 scripts/hassfest      Official Home Assistant hassfest validation via Docker
 scripts/workflow-lint GitHub Actions workflow validation
+scripts/p0-probe      Live P0 acceptance probe against a RepRapFirmware controller
 ```
+
+### P0 live acceptance probe
+
+After the normal validation gate passes, validate the API client against a real printer:
+
+```bash
+export RRF_PASSWORD='your-machine-password'
+scripts/p0-probe 192.168.1.50
+```
+
+For HTTPS or a non-default port:
+
+```bash
+scripts/p0-probe printer.local --https --port 443
+```
+
+If `RRF_PASSWORD` is not set, the probe prompts for the machine password without placing it in the command line. A successful P0 probe connects with a session key, reads `state.status`, sends `M115`, receives its firmware reply, and disconnects.
+
+### P1 Home Assistant acceptance
+
+After `scripts/check-all` passes, copy or mount `custom_components/reprapfirmware` into a test Home Assistant configuration and restart Home Assistant. Add **RepRapFirmware** from **Settings → Devices & services** using the real printer connection details.
+
+P1 is accepted when one printer device is created and the online/status/job/temperature entities show live values without YAML configuration. When RepRapFirmware exposes `boards[0].uniqueId`, that hardware ID is used as the stable Home Assistant config-entry/device identity. While the printer is in an active or transitional state (`processing`, `paused`, `busy`, `pausing`, `resuming`, `cancelling`, `changingTool`, `simulating`, or `starting`), the coordinator polls every 5 seconds; otherwise it polls every 20 seconds. If communication is lost after setup, normal entities become unavailable and the Online binary sensor reports off while retry intervals back off up to 60 seconds.
