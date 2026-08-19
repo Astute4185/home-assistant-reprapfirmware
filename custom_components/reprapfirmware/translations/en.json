@@ -1,0 +1,28 @@
+{
+  "title": "RepRapFirmware",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to RepRapFirmware",
+        "description": "Configure a standalone RepRapFirmware printer. Connection validation will be added with the API client implementation.",
+        "data": {
+          "host": "Host or IP address",
+          "port": "Port",
+          "use_ssl": "Use HTTPS",
+          "password": "Machine password",
+          "name": "Display name"
+        },
+        "data_description": {
+          "host": "Hostname or IP address of the RepRapFirmware controller.",
+          "port": "HTTP or HTTPS port exposed by the controller.",
+          "use_ssl": "Connect to the controller using HTTPS.",
+          "password": "RepRapFirmware machine password. Leave blank only if the machine does not require one.",
+          "name": "Name shown for this printer in Home Assistant."
+        }
+      }
+    },
+    "abort": {
+      "already_configured": "This RepRapFirmware endpoint is already configured."
+    }
+  }
+}
