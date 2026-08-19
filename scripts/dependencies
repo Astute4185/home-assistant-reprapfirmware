@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
+
+python -m pip check
+
+if grep -Eq '^[[:space:]]*[^#[:space:]]' requirements-runtime.txt; then
+  pip-audit -r requirements-runtime.txt
+else
+  echo "No third-party runtime requirements to audit"
+fi

@@ -91,3 +91,46 @@ Third-party software is not relicensed by this repository. Any incorporated or r
 ## Contributions
 
 Contributions should avoid copying code from third-party repositories unless the source, licence compatibility, and required attribution have been reviewed first.
+
+## Development validation
+
+The repository includes a small validation harness so structural and compatibility issues can be caught before printer-facing development starts.
+
+Requirements:
+
+- Python 3.14.2 or newer;
+- Docker only for local `hassfest` and fallback GitHub Actions linting.
+
+Bootstrap the local environment:
+
+```bash
+scripts/bootstrap
+source .venv/bin/activate
+```
+
+Run the normal local gate:
+
+```bash
+scripts/check
+```
+
+This runs repository validation, Ruff, pytest, the network-free Home Assistant import smoke test, and dependency checks.
+
+Run the extended gate:
+
+```bash
+scripts/check-all
+```
+
+The extended gate also runs the official Home Assistant `hassfest` container and validates GitHub Actions workflows. CI runs the repository checks and official `hassfest` validation automatically on pushes and pull requests.
+
+Useful individual commands:
+
+```text
+scripts/lint          Static repository checks, Ruff, and Python compilation
+scripts/test          Pytest suite
+scripts/smoke         Network-free Home Assistant import/API smoke test
+scripts/dependencies  pip dependency integrity and runtime dependency audit
+scripts/hassfest      Official Home Assistant hassfest validation via Docker
+scripts/workflow-lint GitHub Actions workflow validation
+```

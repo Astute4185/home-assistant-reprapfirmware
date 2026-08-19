@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
+
+python scripts/validate_repo.py
+
+if [[ "${1:-}" == "--fix" ]]; then
+  ruff check custom_components scripts tests --fix
+  ruff format custom_components scripts tests
+else
+  ruff check custom_components scripts tests
+  ruff format --check custom_components scripts tests
+fi
+
+python -m compileall -q custom_components scripts tests

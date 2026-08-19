@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
+
+if command -v actionlint >/dev/null 2>&1; then
+  exec actionlint "$@"
+fi
+
+if command -v docker >/dev/null 2>&1; then
+  exec docker run --rm \
+    -v "$ROOT:/repo" \
+    -w /repo \
+    rhysd/actionlint:1.7.12 "$@"
+fi
+
+echo "actionlint or Docker is required to validate GitHub Actions workflows." >&2
+exit 2

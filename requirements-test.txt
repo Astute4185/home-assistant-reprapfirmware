@@ -1,0 +1,7 @@
+# Home Assistant baseline used by the local validation environment.
+homeassistant==2026.8.2
+
+# Repository validation/test tooling.
+pip-audit
+pytest
+ruff

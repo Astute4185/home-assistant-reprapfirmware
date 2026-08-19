@@ -1,0 +1,2 @@
+# Runtime dependencies that are not already supplied by Home Assistant.
+# Keep this file in exact sync with manifest.json -> requirements.

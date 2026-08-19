@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
+
+if ! command -v docker >/dev/null 2>&1; then
+  echo "Docker is required to run the official Home Assistant hassfest validator locally." >&2
+  exit 2
+fi
+
+exec docker run --rm \
+  -v "$ROOT:/github/workspace" \
+  ghcr.io/home-assistant/hassfest
