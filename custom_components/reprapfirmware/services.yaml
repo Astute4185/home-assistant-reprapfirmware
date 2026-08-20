@@ -11,3 +11,16 @@ send_gcode:
       selector:
         text:
           multiline: true
+
+run_macro:
+  fields:
+    device_id:
+      required: true
+      selector:
+        device:
+          integration: reprapfirmware
+    macro:
+      required: true
+      example: Delta Calibration.g
+      selector:
+        text:

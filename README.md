@@ -72,9 +72,9 @@ custom_components/
 
 ## Current implementation status
 
-**P1 — Home Assistant device implementation is present.** The integration now creates a DataUpdateCoordinator-backed Home Assistant device with online, status, job, progress, duration, remaining-time, layer, file-size, nozzle-temperature, nozzle-target, bed-temperature, and bed-target entities. The coordinator polls selected RepRapFirmware Object Model branches, uses a faster interval while the machine is active, and progressively backs off after communication failures.
+**P3 — macro support implementation is present.** The integration includes the P0 API/session layer, P1 Home Assistant device entities, P2 machine controls, and P3 top-level RepRapFirmware macro discovery. Macro buttons are created dynamically from `/macros/`, discovery refreshes on setup/reload and every five minutes, and the `reprapfirmware.run_macro` action executes only macros currently discovered on the selected printer.
 
-P0 API/session functionality remains the transport foundation. Machine-control buttons, arbitrary G-code actions, macro discovery, notification examples, and dashboard work remain later milestones.
+Notification examples, dashboard work, and distribution hardening remain later milestones.
 
 ## Disclaimer
 
@@ -183,3 +183,27 @@ response_variable: rrf_response
 ```
 
 After each control or arbitrary G-code submission, the coordinator requests an immediate refresh so Home Assistant can reflect the resulting machine state without waiting for the normal polling interval.
+
+
+## P3 macro support
+
+P3 discovers top-level `.g` files from `/macros/` using RepRapFirmware's `/rr_filelist` endpoint. File-list pagination is followed until `next` is zero. Directories and non-`.g` files are ignored. Nested macro directories remain out of scope for the POC.
+
+Each discovered macro is exposed as a Home Assistant button. For example, `/macros/Delta Calibration.g` is executed with:
+
+```gcode
+M98 P"/macros/Delta Calibration.g"
+```
+
+Macro discovery runs during integration setup, again whenever the config entry is reloaded, and every five minutes while the integration is loaded. Newly discovered macros are added as button entities. If a macro is removed from the printer, its existing Home Assistant button becomes unavailable instead of executing a stale path.
+
+The integration also registers `reprapfirmware.run_macro`:
+
+```yaml
+action: reprapfirmware.run_macro
+data:
+  device_id: YOUR_HOME_ASSISTANT_DEVICE_ID
+  macro: Delta Calibration.g
+```
+
+The action resolves the requested value against the currently discovered macro list. If it is not found, the integration performs one immediate macro refresh before returning a validation error. This prevents the action from being used as an unrestricted path/G-code injection mechanism.

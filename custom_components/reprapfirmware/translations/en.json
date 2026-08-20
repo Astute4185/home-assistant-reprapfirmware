@@ -100,6 +100,20 @@
           "description": "G-code command or commands to submit to RepRapFirmware."
         }
       }
+    },
+    "run_macro": {
+      "name": "Run macro",
+      "description": "Run a discovered RepRapFirmware macro on the selected printer.",
+      "fields": {
+        "device_id": {
+          "name": "Printer",
+          "description": "RepRapFirmware printer that will run the macro."
+        },
+        "macro": {
+          "name": "Macro",
+          "description": "Discovered macro filename, for example Delta Calibration.g."
+        }
+      }
     }
   },
   "exceptions": {
@@ -114,6 +128,9 @@
     },
     "config_entry_not_loaded": {
       "message": "The RepRapFirmware printer is not currently loaded."
+    },
+    "macro_not_found": {
+      "message": "The RepRapFirmware macro {macro} is not currently discovered."
     }
   }
 }

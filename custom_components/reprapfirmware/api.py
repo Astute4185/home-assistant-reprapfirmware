@@ -60,6 +60,16 @@ class RepRapFirmwareConnectionInfo:
 
 
 @dataclass(frozen=True, slots=True)
+class RepRapFirmwareFileItem:
+    """One item returned by rr_filelist."""
+
+    name: str
+    item_type: str
+    size: int
+    date: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class RepRapFirmwareGCodeResult:
     """Result from submitting G-code to RepRapFirmware."""
 
@@ -225,6 +235,90 @@ class RepRapFirmwareClient:
             authenticated=True,
             auto_reconnect=False,
         )
+
+    async def list_files(self, directory: str) -> tuple[RepRapFirmwareFileItem, ...]:
+        """Return all items in one RepRapFirmware directory.
+
+        rr_filelist may paginate responses using the ``next`` field, so callers
+        receive one normalized tuple regardless of controller response size.
+        """
+        if not directory.strip():
+            raise ValueError("directory must not be empty")
+
+        first = 0
+        items: list[RepRapFirmwareFileItem] = []
+        seen_offsets: set[int] = set()
+
+        while True:
+            if first in seen_offsets:
+                raise RepRapFirmwareProtocolError(
+                    "rr_filelist returned a repeated pagination offset"
+                )
+            seen_offsets.add(first)
+
+            payload = await self._request_json(
+                "/rr_filelist",
+                params={"dir": directory, "first": str(first)},
+                authenticated=True,
+                auto_reconnect=True,
+            )
+
+            error_code = payload.get("err")
+            if error_code == 1:
+                raise RepRapFirmwareResponseError(
+                    f"RepRapFirmware storage is not mounted for {directory}"
+                )
+            if error_code == 2:
+                raise RepRapFirmwareResponseError(
+                    f"RepRapFirmware directory does not exist: {directory}"
+                )
+            if error_code != 0:
+                raise RepRapFirmwareProtocolError(
+                    f"rr_filelist returned unexpected error code: {error_code!r}"
+                )
+
+            files = payload.get("files")
+            if not isinstance(files, list):
+                raise RepRapFirmwareProtocolError(
+                    "rr_filelist response did not contain a files array"
+                )
+
+            for raw_item in files:
+                if not isinstance(raw_item, dict):
+                    raise RepRapFirmwareProtocolError(
+                        "rr_filelist returned a file item that was not an object"
+                    )
+                name = raw_item.get("name")
+                item_type = raw_item.get("type")
+                size = raw_item.get("size")
+                date = raw_item.get("date")
+                if (
+                    not isinstance(name, str)
+                    or item_type not in {"f", "d"}
+                    or isinstance(size, bool)
+                    or not isinstance(size, int)
+                    or (date is not None and not isinstance(date, str))
+                ):
+                    raise RepRapFirmwareProtocolError(
+                        "rr_filelist returned a malformed file item"
+                    )
+                items.append(
+                    RepRapFirmwareFileItem(
+                        name=name,
+                        item_type=item_type,
+                        size=size,
+                        date=date,
+                    )
+                )
+
+            next_offset = payload.get("next", 0)
+            if isinstance(next_offset, bool) or not isinstance(next_offset, int):
+                raise RepRapFirmwareProtocolError(
+                    "rr_filelist next field is not an integer"
+                )
+            if next_offset <= 0:
+                return tuple(items)
+            first = next_offset
 
     async def send_gcode(
         self,

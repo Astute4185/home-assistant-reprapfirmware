@@ -36,6 +36,7 @@ REQUIRED_INTEGRATION_FILES = (
     "entity.py",
     "icons.json",
     "model.py",
+    "macro.py",
     "manifest.json",
     "sensor.py",
     "services.py",
