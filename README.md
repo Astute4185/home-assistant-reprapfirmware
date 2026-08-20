@@ -51,6 +51,8 @@ custom_components/
     ├── api.py
     ├── coordinator.py
     ├── entity.py
+    ├── event.py
+    ├── events.py
     ├── sensor.py
     ├── binary_sensor.py
     ├── button.py
@@ -72,9 +74,9 @@ custom_components/
 
 ## Current implementation status
 
-**P3 — macro support implementation is present.** The integration includes the P0 API/session layer, P1 Home Assistant device entities, P2 machine controls, and P3 top-level RepRapFirmware macro discovery. Macro buttons are created dynamically from `/macros/`, discovery refreshes on setup/reload and every five minutes, and the `reprapfirmware.run_macro` action executes only macros currently discovered on the selected printer.
+**P4 — notifications and dashboard implementation is present.** The integration includes the P0 API/session layer, P1 Home Assistant device entities, P2 machine controls, P3 top-level RepRapFirmware macro discovery, and P4 printer transition events plus example notification/dashboard configuration.
 
-Notification examples, dashboard work, and distribution hardening remain later milestones.
+Distribution hardening remains the final POC milestone.
 
 ## Disclaimer
 
@@ -207,3 +209,23 @@ data:
 ```
 
 The action resolves the requested value against the currently discovered macro list. If it is not found, the integration performs one immediate macro refresh before returning a validation error. This prevents the action from being used as an unrestricted path/G-code injection mechanism.
+
+## P4 notifications and dashboard
+
+P4 adds a `Printer event` event entity for one-shot printer lifecycle signals. The event entity exposes these event types:
+
+- `print_completed` for a direct `processing` → `idle` transition;
+- `print_paused` for a direct `processing` → `paused` transition;
+- `printer_halted` whenever the printer enters `halted`;
+- `connection_lost_during_print` when coordinator communication changes from online to unavailable while the last known printer state was `processing`.
+
+Completion events retain the previous active job name, duration, and progress because RepRapFirmware may clear job data when it returns to idle. If connectivity is lost during a print, P4 deliberately suppresses completion/pause inference on the first recovered sample because the missing interval makes that transition ambiguous. A later successful sample re-establishes the normal transition baseline.
+
+Example Home Assistant configuration is provided in:
+
+```text
+examples/notifications.yaml
+examples/dashboard.yaml
+```
+
+The notification examples target a placeholder Companion App notify action and must be edited to use the actual printer event entity and phone notify action. The dashboard example uses only built-in Home Assistant cards, includes state-aware printer controls, macro buttons, and an Open DWC link, and should likewise be updated with the actual entity IDs and DWC URL.

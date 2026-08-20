@@ -21,6 +21,8 @@ REQUIRED_ROOT_FILES = (
     "NOTICE",
     "README.md",
     "THIRD_PARTY_NOTICES.md",
+    "examples/dashboard.yaml",
+    "examples/notifications.yaml",
     "requirements-runtime.txt",
     "requirements-test.txt",
 )
@@ -34,6 +36,8 @@ REQUIRED_INTEGRATION_FILES = (
     "control.py",
     "coordinator.py",
     "entity.py",
+    "event.py",
+    "events.py",
     "icons.json",
     "model.py",
     "macro.py",
@@ -63,7 +67,9 @@ def _load_json(path: Path) -> Any:
             return json.load(file_handle)
     except (OSError, json.JSONDecodeError) as err:
         relative_path = path.relative_to(ROOT)
-        raise ValueError(f"Cannot load valid JSON from {relative_path}: {err}") from err
+        raise ValueError(
+            f"Cannot load valid JSON from {relative_path}: {err}"
+        ) from err
 
 
 def _runtime_requirements() -> list[str]:

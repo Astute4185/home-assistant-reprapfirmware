@@ -13,6 +13,11 @@
       "cancel": {
         "default": "mdi:stop"
       }
+    },
+    "event": {
+      "printer_event": {
+        "default": "mdi:printer-alert"
+      }
     }
   },
   "services": {

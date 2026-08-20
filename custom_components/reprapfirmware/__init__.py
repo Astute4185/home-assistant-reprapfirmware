@@ -13,7 +13,12 @@ from .const import CONF_USE_SSL, DOMAIN
 from .coordinator import RepRapFirmwareCoordinator
 from .services import async_setup_services
 
-PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.BINARY_SENSOR, Platform.BUTTON]
+PLATFORMS: list[Platform] = [
+    Platform.SENSOR,
+    Platform.BINARY_SENSOR,
+    Platform.BUTTON,
+    Platform.EVENT,
+]
 
 type RepRapFirmwareConfigEntry = ConfigEntry[RepRapFirmwareCoordinator]
 

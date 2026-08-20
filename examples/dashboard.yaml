@@ -1,0 +1,151 @@
+# RepRapFirmware P4 mobile dashboard example.
+#
+# Replace the kracken entity IDs with the IDs Home Assistant created for your
+# printer. Replace the DWC URL with your controller URL. Macro button IDs depend
+# on the filenames discovered from /macros/.
+#
+# This example uses only built-in Home Assistant cards.
+
+title: Kracken
+views:
+  - title: Printer
+    path: printer
+    icon: mdi:printer-3d
+    cards:
+      - type: conditional
+        conditions:
+          - condition: state
+            entity: binary_sensor.kracken_online
+            state: "on"
+        card:
+          type: vertical-stack
+          cards:
+            - type: entities
+              title: Kracken
+              show_header_toggle: false
+              state_color: true
+              entities:
+                - entity: sensor.kracken_status
+                  name: Status
+                - entity: sensor.kracken_job_name
+                  name: Job
+                - entity: sensor.kracken_progress
+                  name: Progress
+                - entity: sensor.kracken_estimated_remaining
+                  name: Remaining
+                - entity: sensor.kracken_print_duration
+                  name: Print duration
+                - entity: sensor.kracken_layer
+                  name: Layer
+
+            - type: horizontal-stack
+              cards:
+                - type: tile
+                  entity: sensor.kracken_nozzle_temperature
+                  name: Nozzle
+                  state_content:
+                    - state
+                - type: tile
+                  entity: sensor.kracken_bed_temperature
+                  name: Bed
+                  state_content:
+                    - state
+
+            - type: horizontal-stack
+              cards:
+                - type: button
+                  entity: button.kracken_pause
+                  name: Pause
+                  icon: mdi:pause
+                  show_state: false
+                  tap_action:
+                    action: perform-action
+                    perform_action: button.press
+                    target:
+                      entity_id: button.kracken_pause
+                - type: button
+                  entity: button.kracken_resume
+                  name: Resume
+                  icon: mdi:play
+                  show_state: false
+                  tap_action:
+                    action: perform-action
+                    perform_action: button.press
+                    target:
+                      entity_id: button.kracken_resume
+                - type: button
+                  entity: button.kracken_cancel
+                  name: Cancel
+                  icon: mdi:stop
+                  show_state: false
+                  tap_action:
+                    action: perform-action
+                    confirmation:
+                      text: Cancel the current print?
+                    perform_action: button.press
+                    target:
+                      entity_id: button.kracken_cancel
+
+            - type: entities
+              title: Controls and macros
+              show_header_toggle: false
+              entities:
+                - type: button
+                  entity: button.kracken_home
+                  name: Home
+                  action_name: Run
+                  tap_action:
+                    action: perform-action
+                    perform_action: button.press
+                    target:
+                      entity_id: button.kracken_home
+                - type: button
+                  entity: button.kracken_delta_calibration
+                  name: Delta calibration
+                  action_name: Run
+                  tap_action:
+                    action: perform-action
+                    perform_action: button.press
+                    target:
+                      entity_id: button.kracken_delta_calibration
+                - type: button
+                  entity: button.kracken_load_filament
+                  name: Load filament
+                  action_name: Run
+                  tap_action:
+                    action: perform-action
+                    perform_action: button.press
+                    target:
+                      entity_id: button.kracken_load_filament
+                - type: button
+                  entity: button.kracken_unload_filament
+                  name: Unload filament
+                  action_name: Run
+                  tap_action:
+                    action: perform-action
+                    perform_action: button.press
+                    target:
+                      entity_id: button.kracken_unload_filament
+                - type: weblink
+                  name: Open DWC
+                  icon: mdi:open-in-new
+                  url: http://kracken.local/
+                  new_tab: true
+
+      - type: conditional
+        conditions:
+          - condition: state
+            entity: binary_sensor.kracken_online
+            state: "off"
+        card:
+          type: entities
+          title: Kracken
+          show_header_toggle: false
+          entities:
+            - entity: binary_sensor.kracken_online
+              name: Printer offline
+            - type: weblink
+              name: Open DWC
+              icon: mdi:open-in-new
+              url: http://kracken.local/
+              new_tab: true
