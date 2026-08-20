@@ -84,6 +84,21 @@
       "cancel": {
         "name": "Cancel"
       }
+    },
+    "event": {
+      "printer_event": {
+        "name": "Printer event",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "print_completed": "Print completed",
+              "print_paused": "Print paused",
+              "printer_halted": "Printer halted",
+              "connection_lost_during_print": "Connection lost during print"
+            }
+          }
+        }
+      }
     }
   },
   "services": {

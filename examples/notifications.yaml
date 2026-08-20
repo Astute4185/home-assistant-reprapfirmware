@@ -1,0 +1,92 @@
+# RepRapFirmware P4 notification examples.
+#
+# Replace:
+#   event.kracken_printer_event        with your printer event entity
+#   notify.mobile_app_your_phone       with your HA Companion App notify action
+#
+# Event entities use a timestamp as their state. Trigger on every state update and
+# filter on the event_type attribute so repeated events of the same type still run.
+
+automation:
+  - id: reprapfirmware_print_complete_notification
+    alias: "Kracken - Print complete"
+    description: "Notify when a RepRapFirmware job changes from processing to idle."
+    triggers:
+      - trigger: state
+        entity_id: event.kracken_printer_event
+        not_to:
+          - unknown
+          - unavailable
+    conditions:
+      - condition: template
+        value_template: >-
+          {{ trigger.to_state.attributes.event_type == 'print_completed' }}
+    actions:
+      - action: notify.mobile_app_your_phone
+        data:
+          title: "Kracken - Print complete"
+          message: >-
+            {% set duration = trigger.to_state.attributes.print_duration %}
+            {{ trigger.to_state.attributes.job_name | default('Print', true) }}
+            completed{% if duration is number %}
+            in {{ (duration / 60) | round(0) | int }} minutes{% endif %}.
+
+  - id: reprapfirmware_print_paused_notification
+    alias: "Kracken - Print paused"
+    description: "Notify when a RepRapFirmware job changes from processing to paused."
+    triggers:
+      - trigger: state
+        entity_id: event.kracken_printer_event
+        not_to:
+          - unknown
+          - unavailable
+    conditions:
+      - condition: template
+        value_template: >-
+          {{ trigger.to_state.attributes.event_type == 'print_paused' }}
+    actions:
+      - action: notify.mobile_app_your_phone
+        data:
+          title: "Kracken - Print paused"
+          message: >-
+            {{ trigger.to_state.attributes.job_name | default('Printer', true) }} requires attention.
+
+  - id: reprapfirmware_halted_notification
+    alias: "Kracken - Printer halted"
+    description: "Notify whenever RepRapFirmware enters the halted state."
+    triggers:
+      - trigger: state
+        entity_id: event.kracken_printer_event
+        not_to:
+          - unknown
+          - unavailable
+    conditions:
+      - condition: template
+        value_template: >-
+          {{ trigger.to_state.attributes.event_type == 'printer_halted' }}
+    actions:
+      - action: notify.mobile_app_your_phone
+        data:
+          title: "Kracken - FAULT"
+          message: "Printer has halted."
+
+  - id: reprapfirmware_connection_lost_during_print_notification
+    alias: "Kracken - Connection lost during print"
+    description: "Notify if HA loses contact while the previous printer state was processing."
+    triggers:
+      - trigger: state
+        entity_id: event.kracken_printer_event
+        not_to:
+          - unknown
+          - unavailable
+    conditions:
+      - condition: template
+        value_template: >-
+          {{ trigger.to_state.attributes.event_type == 'connection_lost_during_print' }}
+    actions:
+      - action: notify.mobile_app_your_phone
+        data:
+          title: "Kracken - Connection lost"
+          message: >-
+            Home Assistant lost contact with the printer while
+            {{ trigger.to_state.attributes.job_name | default('a job', true) }} was active.

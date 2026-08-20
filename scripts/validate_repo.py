@@ -21,6 +21,8 @@ REQUIRED_ROOT_FILES = (
     "NOTICE",
     "README.md",
     "THIRD_PARTY_NOTICES.md",
+    "examples/dashboard.yaml",
+    "examples/notifications.yaml",
     "requirements-runtime.txt",
     "requirements-test.txt",
 )
@@ -34,6 +36,8 @@ REQUIRED_INTEGRATION_FILES = (
     "control.py",
     "coordinator.py",
     "entity.py",
+    "event.py",
+    "events.py",
     "icons.json",
     "model.py",
     "macro.py",
