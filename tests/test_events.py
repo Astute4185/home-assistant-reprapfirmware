@@ -84,9 +84,7 @@ def test_first_offline_update_during_processing_emits_once() -> None:
     first = tracker.process(_data("processing"), is_online=False)
     second = tracker.process(_data("processing"), is_online=False)
 
-    assert [event.event_type for event in first] == [
-        EVENT_CONNECTION_LOST_DURING_PRINT
-    ]
+    assert [event.event_type for event in first] == [EVENT_CONNECTION_LOST_DURING_PRINT]
     assert second == ()
 
 

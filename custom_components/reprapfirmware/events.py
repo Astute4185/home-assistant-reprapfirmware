@@ -119,9 +119,7 @@ class RepRapFirmwareEventTracker:
                             progress=previous.progress,
                         )
                     )
-                elif (
-                    previous_status == "processing" and current_status == "paused"
-                ):
+                elif previous_status == "processing" and current_status == "paused":
                     context = _best_job_context(current_data, previous)
                     events.append(
                         RepRapFirmwareEvent(
