@@ -62,19 +62,30 @@ def _coordinator_for_device(
             translation_placeholders={"device_id": device_id},
         )
 
-    entry = hass.config_entries.async_get_entry(device.config_entry_id)
-    if (
-        entry is None
-        or entry.domain != DOMAIN
-        or entry.state is not ConfigEntryState.LOADED
-        or not isinstance(entry.runtime_data, RepRapFirmwareCoordinator)
-    ):
-        raise ServiceValidationError(
-            translation_domain=DOMAIN,
-            translation_key="config_entry_not_loaded",
-        )
+    # Home Assistant 2026.8 moved devices to a single-owner registry model
+    # with ``config_entry_id``. Older supported HA releases expose the
+    # owning entries through ``config_entries`` instead. Support both forms
+    # so device-targeted actions work across the registry migration.
+    config_entry_id = getattr(device, "config_entry_id", None)
+    if config_entry_id is not None:
+        config_entry_ids = (config_entry_id,)
+    else:
+        config_entry_ids = tuple(getattr(device, "config_entries", ()))
 
-    return entry.runtime_data
+    for entry_id in config_entry_ids:
+        entry = hass.config_entries.async_get_entry(entry_id)
+        if (
+            entry is not None
+            and entry.domain == DOMAIN
+            and entry.state is ConfigEntryState.LOADED
+            and isinstance(entry.runtime_data, RepRapFirmwareCoordinator)
+        ):
+            return entry.runtime_data
+
+    raise ServiceValidationError(
+        translation_domain=DOMAIN,
+        translation_key="config_entry_not_loaded",
+    )
 
 
 async def async_send_gcode(call: ServiceCall) -> ServiceResponse:

@@ -37,4 +37,4 @@ def test_p4_examples_are_present() -> None:
 def test_manifest_version_is_p4() -> None:
     """P4 increments the custom integration version."""
     manifest = json.loads((INTEGRATION / "manifest.json").read_text(encoding="utf-8"))
-    assert manifest["version"] == "0.5.0"
+    assert manifest["version"] == "0.5.1"
