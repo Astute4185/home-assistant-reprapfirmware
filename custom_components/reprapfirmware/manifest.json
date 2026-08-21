@@ -4,9 +4,9 @@
   "codeowners": ["@Astute4815"],
   "version": "0.5.3",
   "config_flow": true,
-  "documentation": "https://github.com/Astute4185/home-assistant-reprapfirmware"
+  "documentation": "https://github.com/Astute4185/home-assistant-reprapfirmware",
   "integration_type": "device",
   "iot_class": "local_polling",
-  "requirements": []
+  "requirements": [],
   "issues": "https://github.com/Astute4185/home-assistant-reprapfirmware/issues"
 }
