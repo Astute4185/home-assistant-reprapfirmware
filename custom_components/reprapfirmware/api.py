@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from dataclasses import dataclass
 from typing import Any
 
@@ -13,6 +14,8 @@ from .const import (
     DEFAULT_REPLY_TIMEOUT,
     DEFAULT_REQUEST_TIMEOUT,
 )
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class RepRapFirmwareError(Exception):
@@ -263,6 +266,7 @@ class RepRapFirmwareClient:
                 auto_reconnect=True,
             )
 
+            files = payload.get("files")
             error_code = payload.get("err")
             if error_code == 1:
                 raise RepRapFirmwareResponseError(
@@ -272,15 +276,23 @@ class RepRapFirmwareClient:
                 raise RepRapFirmwareResponseError(
                     f"RepRapFirmware directory does not exist: {directory}"
                 )
-            if error_code != 0:
+            if error_code not in {0, None}:
                 raise RepRapFirmwareProtocolError(
                     f"rr_filelist returned unexpected error code: {error_code!r}"
                 )
-
-            files = payload.get("files")
             if not isinstance(files, list):
+                if error_code is None:
+                    raise RepRapFirmwareProtocolError(
+                        "rr_filelist response omitted both err and a files array"
+                    )
                 raise RepRapFirmwareProtocolError(
                     "rr_filelist response did not contain a files array"
+                )
+            if error_code is None:
+                _LOGGER.debug(
+                    "rr_filelist response for %s omitted err; accepting valid "
+                    "files array",
+                    directory,
                 )
 
             for raw_item in files:

@@ -269,3 +269,58 @@ def test_list_files_reports_missing_directory() -> None:
             await client.list_files("/macros/")
 
     asyncio.run(run())
+
+
+def test_list_files_accepts_success_payload_without_err_field() -> None:
+    """Some standalone RRF builds omit err on successful file listings."""
+    session = FakeSession(
+        [
+            FakeResponse(json_data={"err": 0, "sessionKey": 123}),
+            FakeResponse(
+                json_data={
+                    "dir": "/macros/",
+                    "first": 0,
+                    "files": [
+                        {
+                            "type": "f",
+                            "name": "Calibrate Printer",
+                            "size": 131,
+                        },
+                        {"type": "f", "name": "Wifi Reset", "size": 330},
+                    ],
+                    "next": 0,
+                }
+            ),
+        ]
+    )
+    client = make_client(session)
+
+    async def run() -> None:
+        await client.connect()
+        items = await client.list_files("/macros/")
+        assert [item.name for item in items] == [
+            "Calibrate Printer",
+            "Wifi Reset",
+        ]
+
+    asyncio.run(run())
+
+
+def test_list_files_rejects_missing_err_and_files() -> None:
+    """Missing err is tolerated only when a valid files array is present."""
+    session = FakeSession(
+        [
+            FakeResponse(json_data={"err": 0, "sessionKey": 123}),
+            FakeResponse(json_data={"dir": "/macros/", "first": 0}),
+        ]
+    )
+    client = make_client(session)
+
+    async def run() -> None:
+        await client.connect()
+        with pytest.raises(
+            RepRapFirmwareProtocolError, match="omitted both err and a files array"
+        ):
+            await client.list_files("/macros/")
+
+    asyncio.run(run())
