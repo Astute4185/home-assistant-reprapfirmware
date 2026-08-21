@@ -1,7 +1,7 @@
 {
   "domain": "reprapfirmware",
   "name": "RepRapFirmware",
-  "codeowners": "@Astute4815",
+  "codeowners": ["@Astute4815"],
   "version": "0.5.3",
   "config_flow": true,
   "integration_type": "device",
