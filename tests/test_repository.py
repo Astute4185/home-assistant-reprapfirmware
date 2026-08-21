@@ -34,7 +34,7 @@ def test_p4_examples_are_present() -> None:
     assert (ROOT / "examples" / "dashboard.yaml").is_file()
 
 
-def test_manifest_version_is_p4() -> None:
-    """P4 increments the custom integration version."""
+def test_manifest_version_includes_macro_hardening_hotfix() -> None:
+    """Macro hardening increments the custom integration patch version."""
     manifest = json.loads((INTEGRATION / "manifest.json").read_text(encoding="utf-8"))
-    assert manifest["version"] == "0.5.1"
+    assert manifest["version"] == "0.5.2"

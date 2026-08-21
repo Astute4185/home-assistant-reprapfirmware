@@ -189,7 +189,7 @@ After each control or arbitrary G-code submission, the coordinator requests an i
 
 ## P3 macro support
 
-P3 discovers top-level `.g` files from `/macros/` using RepRapFirmware's `/rr_filelist` endpoint. File-list pagination is followed until `next` is zero. Directories and non-`.g` files are ignored. Nested macro directories remain out of scope for the POC.
+P3 discovers top-level macro files from `/macros/` using RepRapFirmware's `/rr_filelist` endpoint. File-list pagination is followed until `next` is zero. RepRapFirmware user macros may be named with or without a `.g` extension, so every safe top-level regular file is eligible; directories and nested paths are ignored. Nested macro directories remain out of scope for the POC.
 
 Each discovered macro is exposed as a Home Assistant button. For example, `/macros/Delta Calibration.g` is executed with:
 
@@ -205,10 +205,10 @@ The integration also registers `reprapfirmware.run_macro`:
 action: reprapfirmware.run_macro
 data:
   device_id: YOUR_HOME_ASSISTANT_DEVICE_ID
-  macro: Delta Calibration.g
+  macro: Calibrate Printer
 ```
 
-The action resolves the requested value against the currently discovered macro list. If it is not found, the integration performs one immediate macro refresh before returning a validation error. This prevents the action from being used as an unrestricted path/G-code injection mechanism.
+The action resolves the requested value against the currently discovered macro list. Macro names are matched case-insensitively and `.g` is treated as an optional alias, so an extensionless `Calibrate Printer` macro may be called using either `Calibrate Printer` or `Calibrate Printer.g`. If no discovered macro matches, the integration performs one immediate macro refresh before returning a validation error. This prevents the action from being used as an unrestricted path/G-code injection mechanism.
 
 ## P4 notifications and dashboard
 

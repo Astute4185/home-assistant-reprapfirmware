@@ -123,6 +123,11 @@ class RepRapFirmwareCoordinator(DataUpdateCoordinator[RepRapFirmwareData]):
             return True
 
         self._macros = macros
+        _LOGGER.debug(
+            "Discovered %d RepRapFirmware macro(s): %s",
+            len(macros),
+            ", ".join(macro.name for macro in macros) or "none",
+        )
         for listener in tuple(self._macro_listeners):
             listener()
         return True
@@ -143,16 +148,13 @@ class RepRapFirmwareCoordinator(DataUpdateCoordinator[RepRapFirmwareData]):
         return remove_listener
 
     def macro_by_name_or_path(self, value: str) -> RepRapFirmwareMacro | None:
-        """Resolve a discovered macro by its filename or full macro path."""
-        value = value.strip()
-        return next(
-            (
-                macro
-                for macro in self._macros
-                if value == macro.name or value == macro.path
-            ),
-            None,
-        )
+        """Resolve a discovered macro by filename, path, or unambiguous .g alias."""
+        exact_matches = [macro for macro in self._macros if macro.exact_matches(value)]
+        if len(exact_matches) == 1:
+            return exact_matches[0]
+
+        alias_matches = [macro for macro in self._macros if macro.matches(value)]
+        return alias_matches[0] if len(alias_matches) == 1 else None
 
     async def async_shutdown(self) -> None:
         """Stop coordinator polling and release the RRF session."""
