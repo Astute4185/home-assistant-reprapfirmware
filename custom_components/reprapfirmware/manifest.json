@@ -1,12 +1,12 @@
 {
   "domain": "reprapfirmware",
   "name": "RepRapFirmware",
-  "codeowners": ["@Astute4815"],
+  "codeowners": ["@Astute4185"],
   "version": "0.5.3",
   "config_flow": true,
   "documentation": "https://github.com/Astute4185/home-assistant-reprapfirmware",
   "integration_type": "device",
   "iot_class": "local_polling",
   "requirements": [],
-  "issues": "https://github.com/Astute4185/home-assistant-reprapfirmware/issues"
+  "issue_tracker": "https://github.com/Astute4185/home-assistant-reprapfirmware/issues"
 }
