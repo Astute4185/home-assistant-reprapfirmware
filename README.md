@@ -51,6 +51,8 @@ custom_components/
     ├── api.py
     ├── coordinator.py
     ├── entity.py
+    ├── event.py
+    ├── events.py
     ├── sensor.py
     ├── binary_sensor.py
     ├── button.py
@@ -70,9 +72,11 @@ custom_components/
 5. **Notifications and dashboard** — expose reliable state transitions and example automations/dashboard configuration.
 6. **Hardening** — timeouts, unavailable state, malformed responses, diagnostics, tests, and distribution readiness.
 
-## Current repository baseline
+## Current implementation status
 
-The repository currently contains the legal/project baseline and a minimal Home Assistant custom-integration scaffold. The configuration flow stores endpoint details but **does not yet validate or connect to the printer**. Network authentication and validation belong to the P0 API-client milestone.
+**P4 — notifications and dashboard implementation is present.** The integration includes the P0 API/session layer, P1 Home Assistant device entities, P2 machine controls, P3 top-level RepRapFirmware macro discovery, and P4 printer transition events plus example notification/dashboard configuration.
+
+Distribution hardening remains the final POC milestone.
 
 ## Disclaimer
 
@@ -133,4 +137,95 @@ scripts/smoke         Network-free Home Assistant import/API smoke test
 scripts/dependencies  pip dependency integrity and runtime dependency audit
 scripts/hassfest      Official Home Assistant hassfest validation via Docker
 scripts/workflow-lint GitHub Actions workflow validation
+scripts/p0-probe      Live P0 acceptance probe against a RepRapFirmware controller
 ```
+
+### P0 live acceptance probe
+
+After the normal validation gate passes, validate the API client against a real printer:
+
+```bash
+export RRF_PASSWORD='your-machine-password'
+scripts/p0-probe 192.168.1.50
+```
+
+For HTTPS or a non-default port:
+
+```bash
+scripts/p0-probe printer.local --https --port 443
+```
+
+If `RRF_PASSWORD` is not set, the probe prompts for the machine password without placing it in the command line. A successful P0 probe connects with a session key, reads `state.status`, sends `M115`, receives its firmware reply, and disconnects.
+
+### P1 Home Assistant acceptance
+
+After `scripts/check-all` passes, copy or mount `custom_components/reprapfirmware` into a test Home Assistant configuration and restart Home Assistant. Add **RepRapFirmware** from **Settings → Devices & services** using the real printer connection details.
+
+P1 is accepted when one printer device is created and the online/status/job/temperature entities show live values without YAML configuration. When RepRapFirmware exposes `boards[0].uniqueId`, that hardware ID is used as the stable Home Assistant config-entry/device identity. While the printer is in an active or transitional state (`processing`, `paused`, `busy`, `pausing`, `resuming`, `cancelling`, `changingTool`, `simulating`, or `starting`), the coordinator polls every 5 seconds; otherwise it polls every 20 seconds. If communication is lost after setup, normal entities become unavailable and the Online binary sensor reports off while retry intervals back off up to 60 seconds.
+
+## P2 machine control
+
+P2 adds state-aware Home Assistant button entities for the standard printer controls:
+
+| Control | RepRapFirmware command | Available state |
+|---|---|---|
+| Home | `G28` | `idle` |
+| Pause | `M25` | `processing` |
+| Resume | `M24` | `paused` |
+| Cancel | `M0` | `processing`, `paused` |
+
+The integration also registers the advanced `reprapfirmware.send_gcode` action. It targets a RepRapFirmware device by Home Assistant `device_id` and can optionally return the RepRapFirmware command reply when the caller requests response data.
+
+```yaml
+action: reprapfirmware.send_gcode
+data:
+  device_id: YOUR_HOME_ASSISTANT_DEVICE_ID
+  gcode: M122
+response_variable: rrf_response
+```
+
+After each control or arbitrary G-code submission, the coordinator requests an immediate refresh so Home Assistant can reflect the resulting machine state without waiting for the normal polling interval.
+
+
+## P3 macro support
+
+P3 discovers top-level macro files from `/macros/` using RepRapFirmware's `/rr_filelist` endpoint. File-list pagination is followed until `next` is zero. RepRapFirmware user macros may be named with or without a `.g` extension, so every safe top-level regular file is eligible; directories and nested paths are ignored. Nested macro directories remain out of scope for the POC.
+
+Each discovered macro is exposed as a Home Assistant button. For example, `/macros/Delta Calibration.g` is executed with:
+
+```gcode
+M98 P"/macros/Delta Calibration.g"
+```
+
+Macro discovery runs during integration setup, again whenever the config entry is reloaded, and every five minutes while the integration is loaded. Newly discovered macros are added as button entities. If a macro is removed from the printer, its existing Home Assistant button becomes unavailable instead of executing a stale path.
+
+The integration also registers `reprapfirmware.run_macro`:
+
+```yaml
+action: reprapfirmware.run_macro
+data:
+  device_id: YOUR_HOME_ASSISTANT_DEVICE_ID
+  macro: Calibrate Printer
+```
+
+The action resolves the requested value against the currently discovered macro list. Macro names are matched case-insensitively and `.g` is treated as an optional alias, so an extensionless `Calibrate Printer` macro may be called using either `Calibrate Printer` or `Calibrate Printer.g`. If no discovered macro matches, the integration performs one immediate macro refresh before returning a validation error. This prevents the action from being used as an unrestricted path/G-code injection mechanism.
+
+## P4 notifications and dashboard
+
+P4 adds a `Printer event` event entity for one-shot printer lifecycle signals. The event entity exposes these event types:
+
+- `print_completed` for a direct `processing` → `idle` transition;
+- `print_paused` for a direct `processing` → `paused` transition;
+- `printer_halted` whenever the printer enters `halted`;
+- `connection_lost_during_print` when coordinator communication changes from online to unavailable while the last known printer state was `processing`.
+
+Completion events retain the previous active job name, duration, and progress because RepRapFirmware may clear job data when it returns to idle. If connectivity is lost during a print, P4 deliberately suppresses completion/pause inference on the first recovered sample because the missing interval makes that transition ambiguous. A later successful sample re-establishes the normal transition baseline.
+
+Example Home Assistant configuration is provided in:
+
+```text
+examples/notifications.yaml
+examples/dashboard.yaml
+```
+
+The notification examples target a placeholder Companion App notify action and must be edited to use the actual printer event entity and phone notify action. The dashboard example uses only built-in Home Assistant cards, includes state-aware printer controls, macro buttons, and an Open DWC link, and should likewise be updated with the actual entity IDs and DWC URL.

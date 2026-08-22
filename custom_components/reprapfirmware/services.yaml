@@ -1,0 +1,26 @@
+send_gcode:
+  fields:
+    device_id:
+      required: true
+      selector:
+        device:
+          integration: reprapfirmware
+    gcode:
+      required: true
+      example: M122
+      selector:
+        text:
+          multiline: true
+
+run_macro:
+  fields:
+    device_id:
+      required: true
+      selector:
+        device:
+          integration: reprapfirmware
+    macro:
+      required: true
+      example: Delta Calibration.g
+      selector:
+        text:

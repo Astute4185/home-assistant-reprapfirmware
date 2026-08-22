@@ -26,3 +26,15 @@ def test_english_translation_tracks_source_strings() -> None:
     )
 
     assert english == strings
+
+
+def test_p4_examples_are_present() -> None:
+    """P4 ships notification and mobile dashboard examples."""
+    assert (ROOT / "examples" / "notifications.yaml").is_file()
+    assert (ROOT / "examples" / "dashboard.yaml").is_file()
+
+
+def test_manifest_version_includes_macro_hardening_hotfix() -> None:
+    """Macro hardening increments the custom integration patch version."""
+    manifest = json.loads((INTEGRATION / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["version"] == "0.6.0"

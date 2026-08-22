@@ -4,7 +4,7 @@
     "step": {
       "user": {
         "title": "Connect to RepRapFirmware",
-        "description": "Configure a standalone RepRapFirmware printer. Connection validation will be added with the API client implementation.",
+        "description": "Configure a standalone RepRapFirmware printer. The connection and machine password are validated before the entry is created.",
         "data": {
           "host": "Host or IP address",
           "port": "Port",
@@ -21,8 +21,179 @@
         }
       }
     },
+    "error": {
+      "cannot_connect": "Unable to connect to RepRapFirmware.",
+      "invalid_auth": "The RepRapFirmware machine password is invalid.",
+      "unknown": "Unexpected error while validating the RepRapFirmware connection."
+    },
     "abort": {
       "already_configured": "This RepRapFirmware endpoint is already configured."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "status": {
+        "name": "Status"
+      },
+      "job_name": {
+        "name": "Job name"
+      },
+      "progress": {
+        "name": "Progress"
+      },
+      "print_duration": {
+        "name": "Print duration"
+      },
+      "estimated_remaining": {
+        "name": "Estimated remaining"
+      },
+      "layer": {
+        "name": "Layer"
+      },
+      "file_size": {
+        "name": "File size"
+      },
+      "filament_used": {
+        "name": "Filament used"
+      },
+      "nozzle_temperature": {
+        "name": "Nozzle temperature"
+      },
+      "nozzle_target": {
+        "name": "Nozzle target"
+      },
+      "bed_temperature": {
+        "name": "Bed temperature"
+      },
+      "bed_target": {
+        "name": "Bed target"
+      },
+      "x_position": {
+        "name": "X position"
+      },
+      "y_position": {
+        "name": "Y position"
+      },
+      "z_position": {
+        "name": "Z position"
+      },
+      "current_tool": {
+        "name": "Current tool"
+      },
+      "fan_speed": {
+        "name": "Fan speed"
+      },
+      "fan_target": {
+        "name": "Fan target"
+      },
+      "speed_factor": {
+        "name": "Speed factor"
+      },
+      "extrusion_factor": {
+        "name": "Extrusion factor"
+      },
+      "mcu_temperature": {
+        "name": "MCU temperature"
+      },
+      "input_voltage": {
+        "name": "Input voltage"
+      },
+      "uptime": {
+        "name": "Uptime"
+      }
+    },
+    "binary_sensor": {
+      "online": {
+        "name": "Online"
+      },
+      "x_homed": {
+        "name": "X homed"
+      },
+      "y_homed": {
+        "name": "Y homed"
+      },
+      "z_homed": {
+        "name": "Z homed"
+      },
+      "filament_monitor": {
+        "name": "Filament monitor"
+      }
+    },
+    "button": {
+      "home": {
+        "name": "Home"
+      },
+      "pause": {
+        "name": "Pause"
+      },
+      "resume": {
+        "name": "Resume"
+      },
+      "cancel": {
+        "name": "Cancel"
+      }
+    },
+    "event": {
+      "printer_event": {
+        "name": "Printer event",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "print_completed": "Print completed",
+              "print_paused": "Print paused",
+              "printer_halted": "Printer halted",
+              "connection_lost_during_print": "Connection lost during print"
+            }
+          }
+        }
+      }
+    }
+  },
+  "services": {
+    "send_gcode": {
+      "name": "Send G-code",
+      "description": "Send arbitrary G-code to a RepRapFirmware printer. This is an advanced machine-control action.",
+      "fields": {
+        "device_id": {
+          "name": "Printer",
+          "description": "RepRapFirmware printer that will receive the command."
+        },
+        "gcode": {
+          "name": "G-code",
+          "description": "G-code command or commands to submit to RepRapFirmware."
+        }
+      }
+    },
+    "run_macro": {
+      "name": "Run macro",
+      "description": "Run a discovered RepRapFirmware macro on the selected printer.",
+      "fields": {
+        "device_id": {
+          "name": "Printer",
+          "description": "RepRapFirmware printer that will run the macro."
+        },
+        "macro": {
+          "name": "Macro",
+          "description": "Discovered macro filename, for example Delta Calibration.g."
+        }
+      }
+    }
+  },
+  "exceptions": {
+    "command_not_allowed": {
+      "message": "This command is not available while the printer state is {state}."
+    },
+    "command_failed": {
+      "message": "The RepRapFirmware command failed."
+    },
+    "invalid_device_id": {
+      "message": "No RepRapFirmware device was found with ID {device_id}."
+    },
+    "config_entry_not_loaded": {
+      "message": "The RepRapFirmware printer is not currently loaded."
+    },
+    "macro_not_found": {
+      "message": "The RepRapFirmware macro {macro} is not currently discovered."
     }
   }
 }

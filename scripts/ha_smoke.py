@@ -31,7 +31,7 @@ def main() -> int:
     const = import_module(f"{PACKAGE}.const")
     config_flow = import_module(f"{PACKAGE}.config_flow")
 
-    if const.DOMAIN != manifest["domain"]:
+    if manifest["domain"] != const.DOMAIN:
         raise AssertionError("Imported DOMAIN does not match manifest.json")
 
     if not issubclass(config_flow.RepRapFirmwareConfigFlow, ConfigFlow):
