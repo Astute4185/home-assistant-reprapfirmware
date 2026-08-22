@@ -332,6 +332,23 @@ class RepRapFirmwareClient:
                 return tuple(items)
             first = next_offset
 
+    async def get_file_info(self, name: str | None = None) -> dict[str, Any]:
+        """Return metadata for the active or requested G-code file."""
+        params = {"name": name} if name else None
+        payload = await self._request_json(
+            "/rr_fileinfo",
+            params=params,
+            authenticated=True,
+            auto_reconnect=True,
+        )
+
+        error_code = payload.get("err")
+        if error_code not in {0, None}:
+            raise RepRapFirmwareResponseError(
+                f"rr_fileinfo returned error code: {error_code!r}"
+            )
+        return payload
+
     async def send_gcode(
         self,
         gcode: str,

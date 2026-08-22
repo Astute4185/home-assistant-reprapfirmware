@@ -53,6 +53,9 @@
       "file_size": {
         "name": "File size"
       },
+      "filament_used": {
+        "name": "Filament used"
+      },
       "nozzle_temperature": {
         "name": "Nozzle temperature"
       },
@@ -64,11 +67,56 @@
       },
       "bed_target": {
         "name": "Bed target"
+      },
+      "x_position": {
+        "name": "X position"
+      },
+      "y_position": {
+        "name": "Y position"
+      },
+      "z_position": {
+        "name": "Z position"
+      },
+      "current_tool": {
+        "name": "Current tool"
+      },
+      "fan_speed": {
+        "name": "Fan speed"
+      },
+      "fan_target": {
+        "name": "Fan target"
+      },
+      "speed_factor": {
+        "name": "Speed factor"
+      },
+      "extrusion_factor": {
+        "name": "Extrusion factor"
+      },
+      "mcu_temperature": {
+        "name": "MCU temperature"
+      },
+      "input_voltage": {
+        "name": "Input voltage"
+      },
+      "uptime": {
+        "name": "Uptime"
       }
     },
     "binary_sensor": {
       "online": {
         "name": "Online"
+      },
+      "x_homed": {
+        "name": "X homed"
+      },
+      "y_homed": {
+        "name": "Y homed"
+      },
+      "z_homed": {
+        "name": "Z homed"
+      },
+      "filament_monitor": {
+        "name": "Filament monitor"
       }
     },
     "button": {

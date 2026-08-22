@@ -28,6 +28,17 @@ from .model import RepRapFirmwareData, parse_printer_data
 _LOGGER = logging.getLogger(__name__)
 
 
+def _job_file_size_missing(job: object) -> bool:
+    """Return whether an active job object omitted its file size metadata."""
+    if not isinstance(job, dict):
+        return False
+    file_obj = job.get("file")
+    if not isinstance(file_obj, dict) or not file_obj.get("fileName"):
+        return False
+    size = file_obj.get("size")
+    return isinstance(size, bool) or not isinstance(size, int) or size <= 0
+
+
 class RepRapFirmwareCoordinator(DataUpdateCoordinator[RepRapFirmwareData]):
     """Coordinate polling of one RepRapFirmware printer."""
 
@@ -77,12 +88,16 @@ class RepRapFirmwareCoordinator(DataUpdateCoordinator[RepRapFirmwareData]):
         )
 
     async def _async_update_data(self) -> RepRapFirmwareData:
-        """Fetch and normalize the Object Model branches used by P1."""
+        """Fetch and normalize the Object Model branches used by HA entities."""
         try:
             state = await self.client.get_model("state")
-            job = await self.client.get_model("job")
-            heat = await self.client.get_model("heat")
+            # Verbose fields include job.file.size and heater active/standby
+            # targets, which are not present in every standard rr_model response.
+            job = await self.client.get_model("job", flags="v")
+            heat = await self.client.get_model("heat", flags="v")
             tools = await self.client.get_model("tools")
+            move = await self.client.get_model("move", flags="v")
+            fans = await self.client.get_model("fans")
         except RepRapFirmwareError as err:
             self._offline_failures += 1
             retry_after = min(
@@ -96,12 +111,51 @@ class RepRapFirmwareCoordinator(DataUpdateCoordinator[RepRapFirmwareData]):
             ) from err
 
         self._offline_failures = 0
+
+        # These branches add optional diagnostics/features. Failure to read one of
+        # them must not make the primary printer entities unavailable.
+        live_board: object = {}
+        try:
+            live_board = await self.client.get_model("boards[0]", flags="v")
+        except RepRapFirmwareError as err:
+            _LOGGER.debug(
+                "Unable to retrieve live RepRapFirmware board diagnostics: %s", err
+            )
+
+        filament_monitors: object = []
+        try:
+            filament_monitors = await self.client.get_model("sensors.filamentMonitors")
+        except RepRapFirmwareError as err:
+            _LOGGER.debug(
+                "Unable to retrieve optional RepRapFirmware filament monitors: %s",
+                err,
+            )
+
+        board = self._board
+        if isinstance(self._board, dict) and isinstance(live_board, dict):
+            board = {**self._board, **live_board}
+        elif isinstance(live_board, dict) and live_board:
+            board = live_board
+
+        file_info: object = {}
+        if _job_file_size_missing(job):
+            try:
+                file_info = await self.client.get_file_info()
+            except RepRapFirmwareError as err:
+                _LOGGER.debug(
+                    "Unable to retrieve optional RepRapFirmware file info: %s", err
+                )
+
         data = parse_printer_data(
             state=state,
             job=job,
             heat=heat,
             tools=tools,
-            board=self._board,
+            move=move,
+            fans=fans,
+            board=board,
+            filament_monitors=filament_monitors,
+            file_info=file_info,
         )
         self.update_interval = (
             ACTIVE_POLL_INTERVAL
