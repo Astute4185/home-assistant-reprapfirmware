@@ -64,6 +64,24 @@
       },
       "bed_target": {
         "name": "Bed target"
+      },
+      "x_position": {
+        "name": "X position"
+      },
+      "y_position": {
+        "name": "Y position"
+      },
+      "z_position": {
+        "name": "Z position"
+      },
+      "current_tool": {
+        "name": "Current tool"
+      },
+      "fan_speed": {
+        "name": "Fan speed"
+      },
+      "speed_factor": {
+        "name": "Speed factor"
       }
     },
     "binary_sensor": {

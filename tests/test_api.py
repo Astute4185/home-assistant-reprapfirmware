@@ -324,3 +324,48 @@ def test_list_files_rejects_missing_err_and_files() -> None:
             await client.list_files("/macros/")
 
     asyncio.run(run())
+
+
+def test_get_model_sends_requested_flags() -> None:
+    """Object Model verbose/frequent flags are passed through to RRF."""
+    session = FakeSession(
+        [
+            FakeResponse(json_data={"err": 0, "sessionKey": 123}),
+            FakeResponse(json_data={"key": "heat", "result": {"heaters": []}}),
+        ]
+    )
+    client = make_client(session)
+
+    async def run() -> None:
+        await client.connect()
+        await client.get_model("heat", flags="v")
+        assert session.requests[1]["params"] == {"key": "heat", "flags": "v"}
+
+    asyncio.run(run())
+
+
+def test_get_file_info_returns_active_job_metadata() -> None:
+    """rr_fileinfo can recover file size omitted from Object Model responses."""
+    session = FakeSession(
+        [
+            FakeResponse(json_data={"err": 0, "sessionKey": 123}),
+            FakeResponse(
+                json_data={
+                    "err": 0,
+                    "fileName": "/gcodes/cube.gcode",
+                    "size": 123456,
+                    "printDuration": 42.0,
+                }
+            ),
+        ]
+    )
+    client = make_client(session)
+
+    async def run() -> None:
+        await client.connect()
+        info = await client.get_file_info()
+        assert info["size"] == 123456
+        assert session.requests[1]["url"].endswith("/rr_fileinfo")
+        assert session.requests[1]["params"] is None
+
+    asyncio.run(run())

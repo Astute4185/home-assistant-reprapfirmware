@@ -14,6 +14,7 @@ from homeassistant.components.sensor import (
 from homeassistant.const import (
     PERCENTAGE,
     UnitOfInformation,
+    UnitOfLength,
     UnitOfTemperature,
     UnitOfTime,
 )
@@ -111,6 +112,49 @@ SENSORS: tuple[RepRapFirmwareSensorEntityDescription, ...] = (
         native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         suggested_display_precision=1,
         value_fn=lambda data: data.bed_target,
+    ),
+    RepRapFirmwareSensorEntityDescription(
+        key="x_position",
+        translation_key="x_position",
+        native_unit_of_measurement=UnitOfLength.MILLIMETERS,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=2,
+        value_fn=lambda data: data.x_position,
+    ),
+    RepRapFirmwareSensorEntityDescription(
+        key="y_position",
+        translation_key="y_position",
+        native_unit_of_measurement=UnitOfLength.MILLIMETERS,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=2,
+        value_fn=lambda data: data.y_position,
+    ),
+    RepRapFirmwareSensorEntityDescription(
+        key="z_position",
+        translation_key="z_position",
+        native_unit_of_measurement=UnitOfLength.MILLIMETERS,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=2,
+        value_fn=lambda data: data.z_position,
+    ),
+    RepRapFirmwareSensorEntityDescription(
+        key="current_tool",
+        translation_key="current_tool",
+        value_fn=lambda data: data.current_tool,
+    ),
+    RepRapFirmwareSensorEntityDescription(
+        key="fan_speed",
+        translation_key="fan_speed",
+        native_unit_of_measurement=PERCENTAGE,
+        suggested_display_precision=1,
+        value_fn=lambda data: data.fan_speed,
+    ),
+    RepRapFirmwareSensorEntityDescription(
+        key="speed_factor",
+        translation_key="speed_factor",
+        native_unit_of_measurement=PERCENTAGE,
+        suggested_display_precision=1,
+        value_fn=lambda data: data.speed_factor,
     ),
 )
 

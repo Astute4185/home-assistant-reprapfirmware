@@ -28,6 +28,17 @@ from .model import RepRapFirmwareData, parse_printer_data
 _LOGGER = logging.getLogger(__name__)
 
 
+def _job_file_size_missing(job: object) -> bool:
+    """Return whether an active job object omitted its file size metadata."""
+    if not isinstance(job, dict):
+        return False
+    file_obj = job.get("file")
+    if not isinstance(file_obj, dict) or not file_obj.get("fileName"):
+        return False
+    size = file_obj.get("size")
+    return isinstance(size, bool) or not isinstance(size, int) or size <= 0
+
+
 class RepRapFirmwareCoordinator(DataUpdateCoordinator[RepRapFirmwareData]):
     """Coordinate polling of one RepRapFirmware printer."""
 
@@ -80,9 +91,13 @@ class RepRapFirmwareCoordinator(DataUpdateCoordinator[RepRapFirmwareData]):
         """Fetch and normalize the Object Model branches used by P1."""
         try:
             state = await self.client.get_model("state")
-            job = await self.client.get_model("job")
-            heat = await self.client.get_model("heat")
+            # Verbose fields include job.file.size and heater active/standby
+            # targets, which are not present in every standard rr_model response.
+            job = await self.client.get_model("job", flags="v")
+            heat = await self.client.get_model("heat", flags="v")
             tools = await self.client.get_model("tools")
+            move = await self.client.get_model("move")
+            fans = await self.client.get_model("fans")
         except RepRapFirmwareError as err:
             self._offline_failures += 1
             retry_after = min(
@@ -96,12 +111,25 @@ class RepRapFirmwareCoordinator(DataUpdateCoordinator[RepRapFirmwareData]):
             ) from err
 
         self._offline_failures = 0
+
+        file_info: object = {}
+        if _job_file_size_missing(job):
+            try:
+                file_info = await self.client.get_file_info()
+            except RepRapFirmwareError as err:
+                _LOGGER.debug(
+                    "Unable to retrieve optional RepRapFirmware file info: %s", err
+                )
+
         data = parse_printer_data(
             state=state,
             job=job,
             heat=heat,
             tools=tools,
+            move=move,
+            fans=fans,
             board=self._board,
+            file_info=file_info,
         )
         self.update_interval = (
             ACTIVE_POLL_INTERVAL
