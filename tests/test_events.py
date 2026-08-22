@@ -6,6 +6,7 @@ from custom_components.reprapfirmware.const import (
     EVENT_CONNECTION_LOST_DURING_PRINT,
     EVENT_PRINT_COMPLETED,
     EVENT_PRINT_PAUSED,
+    EVENT_PRINTER_FAULT,
     EVENT_PRINTER_HALTED,
 )
 from custom_components.reprapfirmware.events import RepRapFirmwareEventTracker
@@ -84,14 +85,20 @@ def test_processing_to_paused_emits_pause() -> None:
     assert event.print_duration == 135.0
 
 
-def test_entering_halted_emits_fault_from_any_prior_state() -> None:
-    """Entering halted is reported independently of print activity."""
+def test_entering_halted_emits_lifecycle_and_canonical_fault_events() -> None:
+    """An unexplained halt remains compatible and also raises printer_fault."""
     tracker = RepRapFirmwareEventTracker(_data("idle"), initial_online=True)
 
-    (event,) = tracker.process(_data("halted", job_name=None), is_online=True)
+    events = tracker.process(_data("halted", job_name=None), is_online=True)
 
-    assert event.event_type == EVENT_PRINTER_HALTED
-    assert event.current_status == "halted"
+    assert [event.event_type for event in events] == [
+        EVENT_PRINTER_HALTED,
+        EVENT_PRINTER_FAULT,
+    ]
+    fault = events[1]
+    assert fault.fault_type == "machine"
+    assert fault.fault_source == "printer"
+    assert fault.fault_reason == "halted"
 
 
 def test_first_offline_update_during_processing_emits_once() -> None:
@@ -131,3 +138,90 @@ def test_non_matching_transitions_emit_nothing() -> None:
     assert tracker.process(_data("busy"), is_online=True) == ()
     tracker.process(_data("halted"), is_online=True)
     assert tracker.process(_data("halted"), is_online=True) == ()
+
+
+def test_nozzle_heater_fault_emits_canonical_fault_once() -> None:
+    """A nozzle heater entering RRF fault state emits one fault event."""
+    tracker = RepRapFirmwareEventTracker(_data("processing"), initial_online=True)
+    faulted = replace(_data("processing"), nozzle_heater_state="fault")
+
+    first = tracker.process(faulted, is_online=True)
+    second = tracker.process(faulted, is_online=True)
+
+    assert [event.event_type for event in first] == [EVENT_PRINTER_FAULT]
+    assert first[0].fault_type == "heater"
+    assert first[0].fault_source == "nozzle"
+    assert first[0].fault_reason == "fault"
+    assert second == ()
+
+
+def test_bed_heater_fault_emits_canonical_fault() -> None:
+    """A bed heater entering RRF fault state identifies the bed source."""
+    tracker = RepRapFirmwareEventTracker(_data("processing"), initial_online=True)
+
+    (event,) = tracker.process(
+        replace(_data("processing"), bed_heater_state="fault"),
+        is_online=True,
+    )
+
+    assert event.event_type == EVENT_PRINTER_FAULT
+    assert event.fault_type == "heater"
+    assert event.fault_source == "bed"
+
+
+def test_filament_fault_emits_raw_rrf_reason_once() -> None:
+    """A new filament-monitor problem raises a fault with the raw RRF reason."""
+    tracker = RepRapFirmwareEventTracker(
+        replace(_data("processing"), filament_monitor_status="ok"),
+        initial_online=True,
+    )
+    faulted = replace(
+        _data("processing"),
+        filament_monitor_status="noFilament",
+    )
+
+    first = tracker.process(faulted, is_online=True)
+    second = tracker.process(faulted, is_online=True)
+
+    assert [event.event_type for event in first] == [EVENT_PRINTER_FAULT]
+    assert first[0].fault_type == "filament"
+    assert first[0].fault_source == "filament_monitor"
+    assert first[0].fault_reason == "noFilament"
+    assert second == ()
+
+
+def test_changed_filament_fault_reason_emits_new_fault() -> None:
+    """A changed filament fault reason is actionable and emits a fresh event."""
+    tracker = RepRapFirmwareEventTracker(
+        replace(_data("processing"), filament_monitor_status="noFilament"),
+        initial_online=True,
+    )
+
+    (event,) = tracker.process(
+        replace(_data("processing"), filament_monitor_status="sensorError"),
+        is_online=True,
+    )
+
+    assert event.event_type == EVENT_PRINTER_FAULT
+    assert event.fault_type == "filament"
+    assert event.fault_reason == "sensorError"
+
+
+def test_halted_with_heater_fault_does_not_add_duplicate_generic_fault() -> None:
+    """A known heater cause prevents an additional generic halted fault event."""
+    tracker = RepRapFirmwareEventTracker(_data("processing"), initial_online=True)
+
+    events = tracker.process(
+        replace(
+            _data("halted"),
+            nozzle_heater_state="fault",
+        ),
+        is_online=True,
+    )
+
+    assert [event.event_type for event in events] == [
+        EVENT_PRINTER_FAULT,
+        EVENT_PRINTER_HALTED,
+    ]
+    assert events[0].fault_type == "heater"
+    assert events[0].fault_source == "nozzle"
