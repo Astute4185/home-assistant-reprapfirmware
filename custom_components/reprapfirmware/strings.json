@@ -142,6 +142,7 @@
               "print_completed": "Print completed",
               "print_paused": "Print paused",
               "printer_halted": "Printer halted",
+              "printer_fault": "Printer fault",
               "connection_lost_during_print": "Connection lost during print"
             }
           }

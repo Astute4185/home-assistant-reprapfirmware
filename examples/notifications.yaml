@@ -1,4 +1,8 @@
-# RepRapFirmware P4 notification examples.
+# RepRapFirmware notification examples.
+#
+# Core notification contract:
+#   print_completed  -> successful print completion
+#   printer_fault    -> heater, filament, or generic machine fault
 #
 # Replace:
 #   event.kracken_printer_event        with your printer event entity
@@ -10,7 +14,7 @@
 automation:
   - id: reprapfirmware_print_complete_notification
     alias: "Kracken - Print complete"
-    description: "Notify when a RepRapFirmware job changes from processing to idle."
+    description: "Notify when a RepRapFirmware print completes successfully."
     triggers:
       - trigger: state
         entity_id: event.kracken_printer_event
@@ -31,9 +35,40 @@ automation:
             completed{% if duration is number %}
             in {{ (duration / 60) | round(0) | int }} minutes{% endif %}.
 
+  - id: reprapfirmware_fault_notification
+    alias: "Kracken - Printer fault"
+    description: "Notify for heater, filament, and generic RepRapFirmware faults."
+    triggers:
+      - trigger: state
+        entity_id: event.kracken_printer_event
+        not_to:
+          - unknown
+          - unavailable
+    conditions:
+      - condition: template
+        value_template: >-
+          {{ trigger.to_state.attributes.event_type == 'printer_fault' }}
+    actions:
+      - action: notify.mobile_app_your_phone
+        data:
+          title: "Kracken - FAULT"
+          message: >-
+            {% set fault_type = trigger.to_state.attributes.fault_type %}
+            {% set source = trigger.to_state.attributes.fault_source %}
+            {% set reason = trigger.to_state.attributes.fault_reason %}
+            {% if fault_type == 'heater' %}
+              {{ source | title }} heater fault ({{ reason }}).
+            {% elif fault_type == 'filament' %}
+              Filament fault: {{ reason }}.
+            {% elif fault_type == 'machine' %}
+              Printer fault: {{ reason }}.
+            {% else %}
+              Printer fault detected{% if reason %}: {{ reason }}{% endif %}.
+            {% endif %}
+
   - id: reprapfirmware_print_paused_notification
     alias: "Kracken - Print paused"
-    description: "Notify when a RepRapFirmware job changes from processing to paused."
+    description: "Optional: notify when a job changes from processing to paused."
     triggers:
       - trigger: state
         entity_id: event.kracken_printer_event
@@ -51,28 +86,9 @@ automation:
           message: >-
             {{ trigger.to_state.attributes.job_name | default('Printer', true) }} requires attention.
 
-  - id: reprapfirmware_halted_notification
-    alias: "Kracken - Printer halted"
-    description: "Notify whenever RepRapFirmware enters the halted state."
-    triggers:
-      - trigger: state
-        entity_id: event.kracken_printer_event
-        not_to:
-          - unknown
-          - unavailable
-    conditions:
-      - condition: template
-        value_template: >-
-          {{ trigger.to_state.attributes.event_type == 'printer_halted' }}
-    actions:
-      - action: notify.mobile_app_your_phone
-        data:
-          title: "Kracken - FAULT"
-          message: "Printer has halted."
-
   - id: reprapfirmware_connection_lost_during_print_notification
     alias: "Kracken - Connection lost during print"
-    description: "Notify if HA loses contact while the previous printer state was processing."
+    description: "Optional: notify if HA loses contact during an active print."
     triggers:
       - trigger: state
         entity_id: event.kracken_printer_event

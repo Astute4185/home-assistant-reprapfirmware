@@ -212,12 +212,14 @@ The action resolves the requested value against the currently discovered macro l
 
 ## P4 notifications and dashboard
 
-P4 adds a `Printer event` event entity for one-shot printer lifecycle signals. The event entity exposes these event types:
+P4 adds a `Printer event` event entity for one-shot printer lifecycle and fault signals. The primary notification contract is deliberately small:
 
 - `print_completed` for a direct `processing` → `idle` transition;
-- `print_paused` for a direct `processing` → `paused` transition;
-- `printer_halted` whenever the printer enters `halted`;
-- `connection_lost_during_print` when coordinator communication changes from online to unavailable while the last known printer state was `processing`.
+- `printer_fault` whenever a new heater fault, filament-monitor fault, or otherwise-unexplained `halted` state is detected.
+
+`printer_fault` includes `fault_type`, `fault_source`, and `fault_reason` attributes. Heater faults identify `nozzle` or `bed`; filament faults retain the raw RepRapFirmware monitor reason such as `noFilament`, `tooLittleMovement`, `tooMuchMovement`, `noDataReceived`, or `sensorError`. Fault events are edge-triggered so an unchanged fault does not notify on every coordinator poll.
+
+The event entity also retains the lifecycle event types `print_paused`, `printer_halted`, and `connection_lost_during_print`. `printer_halted` is preserved for compatibility, while `printer_fault` is the canonical event to use for fault notifications.
 
 Completion events retain the previous active job name, duration, and progress because RepRapFirmware may clear job data when it returns to idle. If connectivity is lost during a print, P4 deliberately suppresses completion/pause inference on the first recovered sample because the missing interval makes that transition ambiguous. A later successful sample re-establishes the normal transition baseline.
 
