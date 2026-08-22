@@ -88,7 +88,7 @@ class RepRapFirmwareCoordinator(DataUpdateCoordinator[RepRapFirmwareData]):
         )
 
     async def _async_update_data(self) -> RepRapFirmwareData:
-        """Fetch and normalize the Object Model branches used by P1."""
+        """Fetch and normalize the Object Model branches used by HA entities."""
         try:
             state = await self.client.get_model("state")
             # Verbose fields include job.file.size and heater active/standby
@@ -96,7 +96,7 @@ class RepRapFirmwareCoordinator(DataUpdateCoordinator[RepRapFirmwareData]):
             job = await self.client.get_model("job", flags="v")
             heat = await self.client.get_model("heat", flags="v")
             tools = await self.client.get_model("tools")
-            move = await self.client.get_model("move")
+            move = await self.client.get_model("move", flags="v")
             fans = await self.client.get_model("fans")
         except RepRapFirmwareError as err:
             self._offline_failures += 1
@@ -111,6 +111,31 @@ class RepRapFirmwareCoordinator(DataUpdateCoordinator[RepRapFirmwareData]):
             ) from err
 
         self._offline_failures = 0
+
+        # These branches add optional diagnostics/features. Failure to read one of
+        # them must not make the primary printer entities unavailable.
+        live_board: object = {}
+        try:
+            live_board = await self.client.get_model("boards[0]", flags="v")
+        except RepRapFirmwareError as err:
+            _LOGGER.debug(
+                "Unable to retrieve live RepRapFirmware board diagnostics: %s", err
+            )
+
+        filament_monitors: object = []
+        try:
+            filament_monitors = await self.client.get_model("sensors.filamentMonitors")
+        except RepRapFirmwareError as err:
+            _LOGGER.debug(
+                "Unable to retrieve optional RepRapFirmware filament monitors: %s",
+                err,
+            )
+
+        board = self._board
+        if isinstance(self._board, dict) and isinstance(live_board, dict):
+            board = {**self._board, **live_board}
+        elif isinstance(live_board, dict) and live_board:
+            board = live_board
 
         file_info: object = {}
         if _job_file_size_missing(job):
@@ -128,7 +153,8 @@ class RepRapFirmwareCoordinator(DataUpdateCoordinator[RepRapFirmwareData]):
             tools=tools,
             move=move,
             fans=fans,
-            board=self._board,
+            board=board,
+            filament_monitors=filament_monitors,
             file_info=file_info,
         )
         self.update_interval = (

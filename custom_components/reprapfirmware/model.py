@@ -18,15 +18,27 @@ class RepRapFirmwareData:
     estimated_remaining: float | None
     layer: int | None
     file_size: int | None
+    filament_used: float | None
     nozzle_temperature: float | None
     nozzle_target: float | None
+    nozzle_heater_state: str | None
     bed_temperature: float | None
     bed_target: float | None
+    bed_heater_state: str | None
     x_position: float | None
     y_position: float | None
     z_position: float | None
+    x_homed: bool | None
+    y_homed: bool | None
+    z_homed: bool | None
     fan_speed: float | None
+    fan_target: float | None
     speed_factor: float | None
+    extrusion_factor: float | None
+    filament_monitor_status: str | None
+    mcu_temperature: float | None
+    input_voltage: float | None
+    uptime: float | None
     board_name: str | None
     firmware_version: str | None
     board_unique_id: str | None
@@ -41,6 +53,7 @@ def parse_printer_data(
     move: Any,
     fans: Any,
     board: Any,
+    filament_monitors: Any = None,
     file_info: Any = None,
 ) -> RepRapFirmwareData:
     """Normalize selected RepRapFirmware Object Model branches."""
@@ -51,6 +64,7 @@ def parse_printer_data(
     move_obj = _as_dict(move)
     fans_list = _as_list(fans)
     board_obj = _as_dict(board)
+    monitors_list = _as_list(filament_monitors)
     file_info_obj = _as_dict(file_info)
 
     current_tool = _as_int(state_obj.get("currentTool"))
@@ -68,6 +82,9 @@ def parse_printer_data(
     file_position = _as_int(job_obj.get("filePosition"))
 
     axes = _as_list(move_obj.get("axes"))
+    selected_fan = _select_fan(fans_list, selected_tool)
+    selected_extruder = _select_extruder(move_obj, selected_tool)
+    monitor = _first_filament_monitor(monitors_list)
 
     return RepRapFirmwareData(
         status=_as_str(state_obj.get("status")),
@@ -79,18 +96,30 @@ def parse_printer_data(
         estimated_remaining=_estimated_remaining(job_obj),
         layer=_as_int(job_obj.get("layer")),
         file_size=file_size,
+        filament_used=_non_negative_float(job_obj.get("rawExtrusion")),
         nozzle_temperature=_as_float(nozzle.get("current")),
         nozzle_target=_first_not_none(
             _heater_target(nozzle),
             _tool_target(selected_tool, nozzle_index),
         ),
+        nozzle_heater_state=_as_str(nozzle.get("state")),
         bed_temperature=_as_float(bed.get("current")),
         bed_target=_heater_target(bed),
+        bed_heater_state=_as_str(bed.get("state")),
         x_position=_axis_position(axes, "X"),
         y_position=_axis_position(axes, "Y"),
         z_position=_axis_position(axes, "Z"),
-        fan_speed=_fan_speed_percent(fans_list, selected_tool),
+        x_homed=_axis_homed(axes, "X"),
+        y_homed=_axis_homed(axes, "Y"),
+        z_homed=_axis_homed(axes, "Z"),
+        fan_speed=_fan_percent(selected_fan, "actualValue", "requestedValue"),
+        fan_target=_fan_percent(selected_fan, "requestedValue"),
         speed_factor=_factor_percent(move_obj.get("speedFactor")),
+        extrusion_factor=_factor_percent(selected_extruder.get("factor")),
+        filament_monitor_status=_as_str(monitor.get("status")),
+        mcu_temperature=_nested_current(board_obj, "mcuTemp"),
+        input_voltage=_nested_current(board_obj, "vIn"),
+        uptime=_non_negative_float(state_obj.get("upTime")),
         board_name=_board_name(board_obj),
         firmware_version=_as_str(board_obj.get("firmwareVersion")),
         board_unique_id=_as_str(board_obj.get("uniqueId")),
@@ -118,10 +147,21 @@ def _as_float(value: Any) -> float | None:
     return float(value)
 
 
+def _non_negative_float(value: Any) -> float | None:
+    parsed = _as_float(value)
+    if parsed is None or parsed < 0:
+        return None
+    return parsed
+
+
 def _as_int(value: Any) -> int | None:
     if isinstance(value, bool) or not isinstance(value, int):
         return None
     return value
+
+
+def _as_bool(value: Any) -> bool | None:
+    return value if isinstance(value, bool) else None
 
 
 def _select_tool(tools: list[Any], current_tool: int | None) -> dict[str, Any]:
@@ -202,39 +242,80 @@ def _first_not_none(*values: float | None) -> float | None:
     return None
 
 
-def _axis_position(axes: list[Any], letter: str) -> float | None:
-    """Return the user position for a named axis."""
+def _axis(axes: list[Any], letter: str) -> dict[str, Any]:
     wanted = letter.casefold()
     for raw_axis in axes:
         axis = _as_dict(raw_axis)
         axis_letter = _as_str(axis.get("letter"))
-        if axis_letter is None or axis_letter.casefold() != wanted:
-            continue
-        return _as_float(axis.get("userPosition"))
-    return None
+        if axis_letter is not None and axis_letter.casefold() == wanted:
+            return axis
+    return {}
 
 
-def _fan_speed_percent(fans: list[Any], tool: dict[str, Any]) -> float | None:
-    """Return the first tool-associated fan speed, falling back to the first fan."""
-    fan_indices = [
+def _axis_position(axes: list[Any], letter: str) -> float | None:
+    """Return the user position for a named axis."""
+    return _as_float(_axis(axes, letter).get("userPosition"))
+
+
+def _axis_homed(axes: list[Any], letter: str) -> bool | None:
+    """Return whether a named axis is homed."""
+    return _as_bool(_axis(axes, letter).get("homed"))
+
+
+def _select_fan(fans: list[Any], tool: dict[str, Any]) -> dict[str, Any]:
+    """Select the first tool-associated fan, falling back to the first fan."""
+    indices = [
         index
         for raw_index in _as_list(tool.get("fans"))
         if (index := _as_int(raw_index)) is not None and index >= 0
     ]
-    if not fan_indices and fans:
-        fan_indices = [0]
+    if not indices and fans:
+        indices = [0]
 
-    for index in fan_indices:
-        if index >= len(fans):
-            continue
-        fan = _as_dict(fans[index])
-        value = _as_float(fan.get("actualValue"))
-        if value is None or value < 0:
-            value = _as_float(fan.get("requestedValue"))
+    for index in indices:
+        if index < len(fans):
+            return _as_dict(fans[index])
+    return {}
+
+
+def _fan_percent(fan: dict[str, Any], *keys: str) -> float | None:
+    """Return a fan value converted from the RRF 0..1 range to percent."""
+    for key in keys:
+        value = _as_float(fan.get(key))
         if value is None or value < 0:
             continue
         return round(min(max(value * 100.0, 0.0), 100.0), 1)
     return None
+
+
+def _select_extruder(move: dict[str, Any], tool: dict[str, Any]) -> dict[str, Any]:
+    """Select the first extruder mapped to the current tool."""
+    extruders = _as_list(move.get("extruders"))
+    indices = [
+        index
+        for raw_index in _as_list(tool.get("extruders"))
+        if (index := _as_int(raw_index)) is not None and index >= 0
+    ]
+    if not indices and extruders:
+        indices = [0]
+
+    for index in indices:
+        if index < len(extruders):
+            return _as_dict(extruders[index])
+    return {}
+
+
+def _first_filament_monitor(monitors: list[Any]) -> dict[str, Any]:
+    """Return the first configured filament monitor."""
+    for monitor in monitors:
+        if isinstance(monitor, dict):
+            return monitor
+    return {}
+
+
+def _nested_current(source: dict[str, Any], key: str) -> float | None:
+    """Return the current value from an RRF min/current/max object."""
+    return _as_float(_as_dict(source.get(key)).get("current"))
 
 
 def _factor_percent(value: Any) -> float | None:
