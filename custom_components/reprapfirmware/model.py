@@ -154,6 +154,14 @@ def _non_negative_float(value: Any) -> float | None:
     return parsed
 
 
+def _positive_float(value: Any) -> float | None:
+    """Return a positive numeric value, treating zero as not configured."""
+    parsed = _as_float(value)
+    if parsed is None or parsed <= 0:
+        return None
+    return parsed
+
+
 def _as_int(value: Any) -> int | None:
     if isinstance(value, bool) or not isinstance(value, int):
         return None
@@ -204,13 +212,13 @@ def _heater_at(heaters: list[Any], index: int | None) -> dict[str, Any]:
 
 
 def _heater_target(heater: dict[str, Any]) -> float | None:
-    """Return the target that corresponds to the heater's current state."""
+    """Return the active heater target, or None when no target is set."""
     state = _as_str(heater.get("state"))
     if state in {"off", "offline"}:
-        return 0.0
+        return None
     if state == "standby":
-        return _as_float(heater.get("standby"))
-    return _as_float(heater.get("active"))
+        return _positive_float(heater.get("standby"))
+    return _positive_float(heater.get("active"))
 
 
 def _tool_target(
@@ -232,7 +240,7 @@ def _tool_target(
     values = _as_list(tool.get(key))
     if tool_heater_index >= len(values):
         return None
-    return _as_float(values[tool_heater_index])
+    return _positive_float(values[tool_heater_index])
 
 
 def _first_not_none(*values: float | None) -> float | None:
