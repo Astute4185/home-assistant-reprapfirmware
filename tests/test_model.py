@@ -124,7 +124,7 @@ def test_parse_uses_selected_tool_and_standby_target() -> None:
     assert data.nozzle_temperature == 145.0
     assert data.nozzle_target == 145.0
     assert data.nozzle_heater_state == "standby"
-    assert data.bed_target == 0.0
+    assert data.bed_target is None
     assert data.bed_heater_state == "off"
     assert data.extrusion_factor == 110.0
     assert data.board_name == "Mini5+"
@@ -164,6 +164,36 @@ def test_parse_falls_back_to_tool_and_fileinfo_metadata() -> None:
     assert data.progress == 25.0
     assert data.nozzle_target == 205.0
     assert data.bed_target == 60.0
+
+
+def test_zero_heater_targets_are_treated_as_unset() -> None:
+    """Zero-degree heater targets should not create graphable setpoints."""
+    data = parse_printer_data(
+        state={"status": "idle", "currentTool": 0},
+        job={"file": {}},
+        heat={
+            "bedHeaters": [0],
+            "heaters": [
+                {"current": 24, "active": 0, "standby": 0, "state": "off"},
+                {"current": 25, "active": 0, "standby": 0, "state": "active"},
+            ],
+        },
+        tools=[
+            {
+                "number": 0,
+                "heaters": [1],
+                "active": [0],
+                "standby": [0],
+                "state": "active",
+            }
+        ],
+        move={},
+        fans=[],
+        board={},
+    )
+
+    assert data.nozzle_target is None
+    assert data.bed_target is None
 
 
 def test_parse_fan_falls_back_to_first_configured_fan() -> None:
