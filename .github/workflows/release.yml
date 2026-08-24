@@ -1,6 +1,8 @@
 name: Publish release
 
 on:
+  workflow_dispatch:
+
   push:
     branches:
       - main
@@ -10,21 +12,27 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: publish-release
+  cancel-in-progress: false
+
 jobs:
   release:
     name: Publish HACS release
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
 
     steps:
       - name: Check out release commit
         uses: actions/checkout@v7
 
-      - name: Read manifest version
+      - name: Read and validate manifest version
         id: version
         shell: bash
         run: |
           version="$(python - <<'PY'
           import json
+          import re
           from pathlib import Path
 
           manifest = json.loads(
@@ -32,25 +40,35 @@ jobs:
               .read_text(encoding="utf-8")
           )
 
-          print(manifest["version"])
+          version = manifest["version"]
+
+          if re.fullmatch(
+              r"(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)",
+              version,
+          ) is None:
+              raise SystemExit(
+                  f"Manifest version is not valid three-part SemVer: {version}"
+              )
+
+          print(version)
           PY
           )"
 
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "tag=v$version" >> "$GITHUB_OUTPUT"
 
-      - name: Verify version is not already released
+      - name: Verify tag and release do not already exist
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ steps.version.outputs.tag }}
         run: |
           if gh release view "$TAG" >/dev/null 2>&1; then
-            echo "::error::Release $TAG already exists"
+            echo "::error::GitHub Release $TAG already exists."
             exit 1
           fi
 
-          if git rev-parse "$TAG" >/dev/null 2>&1; then
-            echo "::error::Tag $TAG already exists"
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+            echo "::error::Git tag $TAG already exists."
             exit 1
           fi
 
@@ -59,7 +77,16 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ steps.version.outputs.tag }}
         run: |
-          gh release create "$TAG" \
-            --target "${{ github.sha }}" \
-            --generate-notes \
-            --title "$TAG"
+          gh release create "$TAG"             --target "${{ github.sha }}"             --generate-notes             --title "$TAG"
+
+      - name: Write release summary
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          {
+            echo "## Release published"
+            echo
+            echo "- Manifest: \`custom_components/reprapfirmware/manifest.json\`"
+            echo "- Version: \`${TAG#v}\`"
+            echo "- Tag: \`$TAG\`"
+          } >> "$GITHUB_STEP_SUMMARY"
