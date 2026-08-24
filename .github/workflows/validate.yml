@@ -8,6 +8,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: validate-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 jobs:
   version:
     name: Version check
@@ -19,7 +23,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Require version bump for integration changes
+      - name: Validate integration version policy
         shell: bash
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
@@ -30,11 +34,15 @@ jobs:
           echo "Changed files:"
           echo "$changed_files"
 
+          manifest_path="custom_components/reprapfirmware/manifest.json"
+
+          manifest_changed=false
           integration_changed=false
 
           while IFS= read -r file; do
             case "$file" in
-              custom_components/reprapfirmware/manifest.json)
+              "$manifest_path")
+                manifest_changed=true
                 ;;
               custom_components/reprapfirmware/*)
                 integration_changed=true
@@ -42,13 +50,18 @@ jobs:
             esac
           done <<< "$changed_files"
 
-          if [ "$integration_changed" = false ]; then
-            echo "No shipped integration changes. Version bump not required."
+          if [ "$integration_changed" = true ] && [ "$manifest_changed" = false ]; then
+            echo "::error::Shipped integration files changed but manifest.json was not bumped."
+            exit 1
+          fi
+
+          if [ "$manifest_changed" = false ]; then
+            echo "No manifest change required."
             exit 0
           fi
 
           base_version="$(
-            git show "$BASE_SHA:custom_components/reprapfirmware/manifest.json" |
+            git show "$BASE_SHA:$manifest_path" |
             python -c 'import json,sys; print(json.load(sys.stdin)["version"])'
           )"
 
@@ -57,37 +70,47 @@ jobs:
           import json
           from pathlib import Path
 
-          print(
-              json.loads(
-                  Path(
-                      "custom_components/reprapfirmware/manifest.json"
-                  ).read_text(encoding="utf-8")
-              )["version"]
-          )
+          path = Path("custom_components/reprapfirmware/manifest.json")
+          print(json.loads(path.read_text(encoding="utf-8"))["version"])
           '
           )"
 
           echo "Base version: $base_version"
           echo "PR version:   $head_version"
 
-          if [ "$base_version" = "$head_version" ]; then
-            echo "::error::Integration files changed but manifest version was not bumped."
-            exit 1
-          fi
-
           python - "$base_version" "$head_version" <<'PY'
+          import re
           import sys
 
-          old = tuple(map(int, sys.argv[1].split(".")))
-          new = tuple(map(int, sys.argv[2].split(".")))
+          semver = re.compile(
+              r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$"
+          )
+
+          old_text, new_text = sys.argv[1], sys.argv[2]
+
+          old_match = semver.fullmatch(old_text)
+          new_match = semver.fullmatch(new_text)
+
+          if old_match is None:
+              raise SystemExit(
+                  f"::error::Base manifest version is not valid SemVer: {old_text}"
+              )
+
+          if new_match is None:
+              raise SystemExit(
+                  f"::error::PR manifest version is not valid SemVer: {new_text}"
+              )
+
+          old = tuple(map(int, old_match.groups()))
+          new = tuple(map(int, new_match.groups()))
 
           if new <= old:
               raise SystemExit(
                   f"::error::Manifest version must increase: "
-                  f"{sys.argv[1]} -> {sys.argv[2]}"
+                  f"{old_text} -> {new_text}"
               )
 
-          print(f"Version increased: {sys.argv[1]} -> {sys.argv[2]}")
+          print(f"Manifest version increased: {old_text} -> {new_text}")
           PY
 
   repository:
@@ -106,9 +129,7 @@ jobs:
 
       - name: Install validation dependencies
         run: |
-          python -m pip install \
-            -r requirements-test.txt \
-            -r requirements-runtime.txt
+          python -m pip install             -r requirements-test.txt             -r requirements-runtime.txt
 
       - name: Run repository checks
         run: scripts/check

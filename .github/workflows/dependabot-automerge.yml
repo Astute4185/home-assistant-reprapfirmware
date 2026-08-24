@@ -12,7 +12,9 @@ permissions:
 jobs:
   enable-auto-merge:
     name: Enable Dependabot auto-merge
-    if: github.event.pull_request.user.login == 'dependabot[bot]'
+    if: >
+      github.event.pull_request.user.login == 'dependabot[bot]' &&
+      github.repository == 'Astute4185/home-assistant-reprapfirmware'
     runs-on: ubuntu-latest
 
     steps:
