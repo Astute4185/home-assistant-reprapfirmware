@@ -1,233 +1,383 @@
 # RepRapFirmware Home Assistant Integration
 
-A Home Assistant custom integration for monitoring and controlling standalone RepRapFirmware/Duet 3D printers directly over the RepRapFirmware HTTP API.
+<p align="center">
+  <img src="custom_components/reprapfirmware/brand/icon@2x.png" width="128" alt="RepRapFirmware">
+</p>
 
-> **Project status:** Early development / proof of concept.
+A Home Assistant custom integration for monitoring and controlling standalone **RepRapFirmware / Duet 3D printers** directly over the RepRapFirmware HTTP API.
 
-## Objective
+Home Assistant communicates directly with the printer. No MQTT broker, intermediary service, Docker container or cloud component is required.
 
-The project is intended to provide a native-style Home Assistant integration for RepRapFirmware printers while keeping Duet Web Control available for configuration, console access, file management, diagnostics, height maps, and other advanced machine operations.
+> **Status:** Active development. Core monitoring, machine control, macro discovery, printer events and fault detection are implemented.
 
-Planned capabilities include:
+## Features
 
-- printer online/offline and machine-state monitoring;
-- print job name, progress, duration, remaining time, layer, and file metadata;
-- nozzle, bed, and additional heater temperatures;
-- machine position and selected operating state;
-- Home, Pause, Resume, and Cancel controls;
-- automatic discovery of RepRapFirmware macros as Home Assistant buttons;
-- advanced Home Assistant actions for running macros and sending G-code;
-- state suitable for completion, pause, fault, and connection-loss automations;
-- a mobile-friendly example Home Assistant dashboard.
+### Printer monitoring
 
-## Home Assistant domain
+The integration exposes printer and job information including:
 
-```text
-reprapfirmware
-```
+- online/offline state;
+- RepRapFirmware machine status;
+- current print job;
+- print progress;
+- print duration;
+- estimated remaining time;
+- current layer;
+- file size;
+- filament used;
+- X, Y and Z position;
+- current tool;
+- fan speed and target;
+- speed factor;
+- extrusion factor.
 
-The domain intentionally refers to RepRapFirmware rather than a specific Duet controller model.
+### Temperature monitoring
 
-## Initial target
+Temperature entities include:
 
-- RepRapFirmware 3.5+
-- standalone Duet HTTP API
-- Duet 3 Mini 5+ WiFi as the primary development platform
-- current Home Assistant releases
+- nozzle temperature;
+- nozzle target;
+- bed temperature;
+- bed target;
+- MCU temperature.
 
-## Architecture
+Nozzle and bed temperature entities also expose the raw RepRapFirmware `heater_state` as an entity attribute.
 
-Home Assistant will communicate directly with RepRapFirmware. The project does not require an MQTT broker, intermediary Docker service, or cloud component.
+This allows Home Assistant automations to detect RepRapFirmware heater faults directly.
 
-The planned integration package is:
+### Diagnostics
 
-```text
-custom_components/
-└── reprapfirmware/
-    ├── __init__.py
-    ├── manifest.json
-    ├── const.py
-    ├── config_flow.py
-    ├── api.py
-    ├── coordinator.py
-    ├── entity.py
-    ├── event.py
-    ├── events.py
-    ├── sensor.py
-    ├── binary_sensor.py
-    ├── button.py
-    ├── diagnostics.py
-    ├── services.yaml
-    ├── strings.json
-    └── translations/
-        └── en.json
-```
+Diagnostic data includes:
 
-## POC milestones
+- MCU temperature;
+- controller input voltage;
+- printer uptime.
 
-1. **API client** — authentication, session handling, Object Model reads, G-code submission, command replies, reconnect handling.
-2. **Home Assistant device** — UI config flow and core status/job/temperature entities.
-3. **Machine control** — Home, Pause, Resume, Cancel, and advanced G-code action.
-4. **Macro support** — enumerate `/macros/`, create macro buttons, run macros, refresh discovery.
-5. **Notifications and dashboard** — expose reliable state transitions and example automations/dashboard configuration.
-6. **Hardening** — timeouts, unavailable state, malformed responses, diagnostics, tests, and distribution readiness.
+### Homing and filament monitoring
 
-## Current implementation status
+Binary sensors include:
 
-**P4 — notifications and dashboard implementation is present.** The integration includes the P0 API/session layer, P1 Home Assistant device entities, P2 machine controls, P3 top-level RepRapFirmware macro discovery, and P4 printer transition events plus example notification/dashboard configuration.
+- printer connectivity;
+- X homed;
+- Y homed;
+- Z homed;
+- filament monitor problem state, when a filament monitor is configured in RepRapFirmware.
 
-Distribution hardening remains the final POC milestone.
+The filament monitor entity exposes the raw RepRapFirmware monitor status as the `status` attribute.
 
-## Disclaimer
+Possible fault states include values such as:
 
-This is an independent, community-developed project. It is **not affiliated with, endorsed by, sponsored by, or maintained by Home Assistant, Nabu Casa, Duet3D, or the RepRapFirmware project**.
+- `noFilament`;
+- `tooLittleMovement`;
+- `tooMuchMovement`;
+- `noDataReceived`;
+- `sensorError`.
 
-Home Assistant, RepRapFirmware, Duet, Duet3D, and other third-party project names are used only to identify compatibility and interoperability with the systems this integration is designed to support.
+## Machine controls
 
-This project interacts with third-party systems through their documented interfaces and may use third-party open-source libraries. Those projects and libraries remain subject to their own copyright and licence terms. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+The integration provides state-aware Home Assistant buttons for common printer operations.
 
-## Licence
+| Control | RepRapFirmware command | Available when |
+| --- | --- | --- |
+| Home | `G28` | Idle |
+| Pause | `M25` | Processing |
+| Resume | `M24` | Paused |
+| Cancel | `M0` | Processing or paused |
 
-Unless otherwise noted, original source code in this repository is licensed under the **Apache License 2.0**. See [LICENSE](LICENSE).
+Buttons become unavailable when the current printer state does not permit the command.
 
-Third-party software is not relicensed by this repository. Any incorporated or redistributed third-party material remains subject to its applicable licence and attribution requirements.
+This provides a basic safety layer against obviously inappropriate operations from a Home Assistant dashboard.
 
-## Contributions
+## RepRapFirmware macros
 
-Contributions should avoid copying code from third-party repositories unless the source, licence compatibility, and required attribution have been reviewed first.
-
-## Development validation
-
-The repository includes a small validation harness so structural and compatibility issues can be caught before printer-facing development starts.
-
-Requirements:
-
-- Python 3.14.2 or newer;
-- Docker only for local `hassfest` and fallback GitHub Actions linting.
-
-Bootstrap the local environment:
-
-```bash
-scripts/bootstrap
-source .venv/bin/activate
-```
-
-Run the normal local gate:
-
-```bash
-scripts/check
-```
-
-This runs repository validation, Ruff, pytest, the network-free Home Assistant import smoke test, and dependency checks.
-
-Run the extended gate:
-
-```bash
-scripts/check-all
-```
-
-The extended gate also runs the official Home Assistant `hassfest` container and validates GitHub Actions workflows. CI runs the repository checks and official `hassfest` validation automatically on pushes and pull requests.
-
-Useful individual commands:
+Top-level files in:
 
 ```text
-scripts/lint          Static repository checks, Ruff, and Python compilation
-scripts/test          Pytest suite
-scripts/smoke         Network-free Home Assistant import/API smoke test
-scripts/dependencies  pip dependency integrity and runtime dependency audit
-scripts/hassfest      Official Home Assistant hassfest validation via Docker
-scripts/workflow-lint GitHub Actions workflow validation
-scripts/p0-probe      Live P0 acceptance probe against a RepRapFirmware controller
+/macros/
 ```
 
-### P0 live acceptance probe
+are automatically discovered and exposed as Home Assistant button entities.
 
-After the normal validation gate passes, validate the API client against a real printer:
+For example:
 
-```bash
-export RRF_PASSWORD='your-machine-password'
-scripts/p0-probe 192.168.1.50
+```text
+/macros/Delta Calibration.g
+/macros/Load Filament.g
+/macros/Unload Filament.g
 ```
 
-For HTTPS or a non-default port:
+become separate Home Assistant buttons.
 
-```bash
-scripts/p0-probe printer.local --https --port 443
+Macros are refreshed:
+
+- during integration setup;
+- whenever the integration is reloaded;
+- periodically while the integration is running.
+
+Removed macros become unavailable rather than continuing to execute a stale path.
+
+Nested macro directories are not currently supported.
+
+## Printer events and notifications
+
+The integration exposes a `Printer event` event entity intended for Home Assistant automations and notifications.
+
+Supported event types are:
+
+| Event | Description |
+| --- | --- |
+| `print_completed` | A print completed successfully |
+| `printer_fault` | Heater, filament or generic machine fault |
+| `print_paused` | An active print was paused |
+| `printer_halted` | RepRapFirmware entered the halted state |
+| `connection_lost_during_print` | Home Assistant lost contact with the printer during an active job |
+
+### Fault events
+
+`printer_fault` is the recommended event for fault notifications.
+
+Fault events can include:
+
+```text
+fault_type
+fault_source
+fault_reason
 ```
 
-If `RRF_PASSWORD` is not set, the probe prompts for the machine password without placing it in the command line. A successful P0 probe connects with a session key, reads `state.status`, sends `M115`, receives its firmware reply, and disconnects.
+For example:
 
-### P1 Home Assistant acceptance
+```text
+fault_type: heater
+fault_source: nozzle
+fault_reason: fault
+```
 
-After `scripts/check-all` passes, copy or mount `custom_components/reprapfirmware` into a test Home Assistant configuration and restart Home Assistant. Add **RepRapFirmware** from **Settings → Devices & services** using the real printer connection details.
+or:
 
-P1 is accepted when one printer device is created and the online/status/job/temperature entities show live values without YAML configuration. When RepRapFirmware exposes `boards[0].uniqueId`, that hardware ID is used as the stable Home Assistant config-entry/device identity. While the printer is in an active or transitional state (`processing`, `paused`, `busy`, `pausing`, `resuming`, `cancelling`, `changingTool`, `simulating`, or `starting`), the coordinator polls every 5 seconds; otherwise it polls every 20 seconds. If communication is lost after setup, normal entities become unavailable and the Online binary sensor reports off while retry intervals back off up to 60 seconds.
+```text
+fault_type: filament
+fault_reason: noFilament
+```
 
-## P2 machine control
+Fault events are edge-triggered so an unchanged fault does not generate a new notification on every polling cycle.
 
-P2 adds state-aware Home Assistant button entities for the standard printer controls:
+### Print completion
 
-| Control | RepRapFirmware command | Available state |
-|---|---|---|
-| Home | `G28` | `idle` |
-| Pause | `M25` | `processing` |
-| Resume | `M24` | `paused` |
-| Cancel | `M0` | `processing`, `paused` |
+Completion events retain job information from the previous active print where available, including:
 
-The integration also registers the advanced `reprapfirmware.send_gcode` action. It targets a RepRapFirmware device by Home Assistant `device_id` and can optionally return the RepRapFirmware command reply when the caller requests response data.
+- job name;
+- print duration;
+- progress.
+
+This allows notifications to retain useful job context even if RepRapFirmware clears the current job information when returning to idle.
+
+Example automations are provided in:
+
+```text
+examples/notifications.yaml
+```
+
+## Home Assistant actions
+
+Two advanced actions are provided.
+
+### `reprapfirmware.run_macro`
+
+Executes a currently discovered RepRapFirmware macro.
+
+```yaml
+action: reprapfirmware.run_macro
+data:
+  device_id: YOUR_HOME_ASSISTANT_DEVICE_ID
+  macro: Delta Calibration.g
+```
+
+Macro matching is case-insensitive and the `.g` suffix may be omitted.
+
+The requested macro must exist in the currently discovered RepRapFirmware macro list.
+
+### `reprapfirmware.send_gcode`
+
+Sends arbitrary G-code to the printer.
 
 ```yaml
 action: reprapfirmware.send_gcode
 data:
   device_id: YOUR_HOME_ASSISTANT_DEVICE_ID
   gcode: M122
-response_variable: rrf_response
 ```
 
-After each control or arbitrary G-code submission, the coordinator requests an immediate refresh so Home Assistant can reflect the resulting machine state without waiting for the normal polling interval.
+This is an advanced action.
 
+RepRapFirmware can execute arbitrary machine-control commands through this interface, so automations using `send_gcode` should be treated with the same care as commands entered directly into the Duet Web Control console.
 
-## P3 macro support
+## Requirements
 
-P3 discovers top-level macro files from `/macros/` using RepRapFirmware's `/rr_filelist` endpoint. File-list pagination is followed until `next` is zero. RepRapFirmware user macros may be named with or without a `.g` extension, so every safe top-level regular file is eligible; directories and nested paths are ignored. Nested macro directories remain out of scope for the POC.
+Current target environment:
 
-Each discovered macro is exposed as a Home Assistant button. For example, `/macros/Delta Calibration.g` is executed with:
+- RepRapFirmware **3.5+**;
+- standalone RepRapFirmware / Duet HTTP API;
+- current Home Assistant releases.
 
-```gcode
-M98 P"/macros/Delta Calibration.g"
-```
+Development and testing are primarily performed against standalone Duet hardware.
 
-Macro discovery runs during integration setup, again whenever the config entry is reloaded, and every five minutes while the integration is loaded. Newly discovered macros are added as button entities. If a macro is removed from the printer, its existing Home Assistant button becomes unavailable instead of executing a stale path.
+## Installation
 
-The integration also registers `reprapfirmware.run_macro`:
+### HACS
 
-```yaml
-action: reprapfirmware.run_macro
-data:
-  device_id: YOUR_HOME_ASSISTANT_DEVICE_ID
-  macro: Calibrate Printer
-```
+Until the integration is available in the default HACS repository, add it as a custom repository.
 
-The action resolves the requested value against the currently discovered macro list. Macro names are matched case-insensitively and `.g` is treated as an optional alias, so an extensionless `Calibrate Printer` macro may be called using either `Calibrate Printer` or `Calibrate Printer.g`. If no discovered macro matches, the integration performs one immediate macro refresh before returning a validation error. This prevents the action from being used as an unrestricted path/G-code injection mechanism.
+1. Open **HACS** in Home Assistant.
+2. Open **Custom repositories**.
+3. Add this GitHub repository.
+4. Select **Integration** as the repository type.
+5. Install **RepRapFirmware**.
+6. Restart Home Assistant when requested.
 
-## P4 notifications and dashboard
+Then configure the integration through:
 
-P4 adds a `Printer event` event entity for one-shot printer lifecycle and fault signals. The primary notification contract is deliberately small:
+**Settings → Devices & services → Add integration → RepRapFirmware**
 
-- `print_completed` for a direct `processing` → `idle` transition;
-- `printer_fault` whenever a new heater fault, filament-monitor fault, or otherwise-unexplained `halted` state is detected.
+### Manual installation
 
-`printer_fault` includes `fault_type`, `fault_source`, and `fault_reason` attributes. Heater faults identify `nozzle` or `bed`; filament faults retain the raw RepRapFirmware monitor reason such as `noFilament`, `tooLittleMovement`, `tooMuchMovement`, `noDataReceived`, or `sensorError`. Fault events are edge-triggered so an unchanged fault does not notify on every coordinator poll.
-
-The event entity also retains the lifecycle event types `print_paused`, `printer_halted`, and `connection_lost_during_print`. `printer_halted` is preserved for compatibility, while `printer_fault` is the canonical event to use for fault notifications.
-
-Completion events retain the previous active job name, duration, and progress because RepRapFirmware may clear job data when it returns to idle. If connectivity is lost during a print, P4 deliberately suppresses completion/pause inference on the first recovered sample because the missing interval makes that transition ambiguous. A later successful sample re-establishes the normal transition baseline.
-
-Example Home Assistant configuration is provided in:
+Copy:
 
 ```text
-examples/notifications.yaml
+custom_components/reprapfirmware
+```
+
+into your Home Assistant configuration:
+
+```text
+config/
+└── custom_components/
+    └── reprapfirmware/
+```
+
+Restart Home Assistant, then add the integration from **Settings → Devices & services**.
+
+## Configuration
+
+The integration is configured entirely through the Home Assistant UI.
+
+Configuration fields include:
+
+- Host/IP address;
+- Port;
+- HTTP or HTTPS;
+- RepRapFirmware machine password;
+- Optional display name.
+
+The integration connects to RepRapFirmware using its HTTP session API and retains the session key only in memory.
+
+## Polling
+
+The integration uses Home Assistant's coordinated polling model rather than allowing individual entities to independently query the printer.
+
+Typical polling behaviour is:
+
+- active, printing or transitional states: approximately every 5 seconds;
+- idle state: approximately every 20 seconds;
+- offline state: progressively backed-off retries up to approximately 60 seconds.
+
+When communication is lost, normal printer entities become unavailable while the connectivity binary sensor remains available and reports the printer as offline.
+
+## Dashboard example
+
+A mobile-friendly dashboard example using built-in Home Assistant cards is available at:
+
+```text
 examples/dashboard.yaml
 ```
 
-The notification examples target a placeholder Companion App notify action and must be edited to use the actual printer event entity and phone notify action. The dashboard example uses only built-in Home Assistant cards, includes state-aware printer controls, macro buttons, and an Open DWC link, and should likewise be updated with the actual entity IDs and DWC URL.
+It demonstrates:
+
+- printer status;
+- current job information;
+- temperatures;
+- Pause / Resume / Cancel controls;
+- Home;
+- discovered macro buttons;
+- an Open DWC link;
+- offline handling.
+
+Entity IDs and the Duet Web Control address must be adjusted for your printer.
+
+## Duet Web Control
+
+This integration is intended to complement **Duet Web Control**, not replace it.
+
+DWC remains the appropriate interface for:
+
+- configuration;
+- console access;
+- file management;
+- firmware management;
+- diagnostics;
+- height maps;
+- advanced machine control.
+
+Home Assistant provides monitoring, automation, notifications and convenient commonly used controls around that existing interface.
+
+## Development
+
+Bootstrap the local development environment:
+
+```bash
+scripts/bootstrap
+source .venv/bin/activate
+```
+
+Run the normal repository validation:
+
+```bash
+scripts/check
+```
+
+Run the extended validation suite:
+
+```bash
+scripts/check-all
+```
+
+The validation stack includes:
+
+- repository structure checks;
+- Ruff;
+- pytest;
+- Home Assistant import/API smoke testing;
+- dependency validation;
+- Home Assistant Hassfest;
+- HACS validation in CI.
+
+Pull requests targeting `main` must pass the configured repository, Hassfest and HACS validation gates before merge.
+
+## Contributing
+
+Bug reports and pull requests are welcome.
+
+Changes should preserve the integration's core design:
+
+- direct local communication with RepRapFirmware;
+- Home Assistant-native entities and configuration;
+- no mandatory intermediary service;
+- state-aware machine controls;
+- safe handling of arbitrary commands and macro paths.
+
+Contributions should not copy third-party source code unless licence compatibility and attribution requirements have been reviewed.
+
+## Disclaimer
+
+This is an independent, community-developed project.
+
+It is not affiliated with, endorsed by, sponsored by or maintained by Home Assistant, Nabu Casa, Duet3D or the RepRapFirmware project.
+
+Home Assistant, RepRapFirmware, Duet, Duet3D and other third-party project names are used only to identify compatibility and interoperability with the systems this integration supports.
+
+See `THIRD_PARTY_NOTICES.md` for third-party licence and attribution information.
+
+## Licence
+
+Original source code in this repository is licensed under the **Apache License 2.0** unless otherwise noted.
+
+See `LICENSE` for details.
