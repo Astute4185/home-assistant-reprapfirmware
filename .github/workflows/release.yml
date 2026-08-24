@@ -1,11 +1,11 @@
 name: Publish release
 
 on:
-  pull_request_target:
+  push:
     branches:
       - main
-    types:
-      - closed
+    paths:
+      - custom_components/reprapfirmware/manifest.json
 
 permissions:
   contents: write
@@ -13,16 +13,11 @@ permissions:
 jobs:
   release:
     name: Publish HACS release
-    if: >
-      github.event.pull_request.merged == true &&
-      github.event.pull_request.head.ref == 'automation/version-bump'
     runs-on: ubuntu-latest
 
     steps:
-      - name: Check out main
+      - name: Check out release commit
         uses: actions/checkout@v7
-        with:
-          ref: main
 
       - name: Read manifest version
         id: version
@@ -33,30 +28,38 @@ jobs:
           from pathlib import Path
 
           manifest = json.loads(
-              Path("custom_components/reprapfirmware/manifest.json").read_text(
-                  encoding="utf-8"
-              )
+              Path("custom_components/reprapfirmware/manifest.json")
+              .read_text(encoding="utf-8")
           )
+
           print(manifest["version"])
           PY
           )"
+
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "tag=v$version" >> "$GITHUB_OUTPUT"
 
-      - name: Ensure release does not already exist
+      - name: Verify version is not already released
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
         run: |
-          if gh release view "${{ steps.version.outputs.tag }}" >/dev/null 2>&1; then
-            echo "Release ${{ steps.version.outputs.tag }} already exists"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "::error::Release $TAG already exists"
             exit 1
           fi
-        env:
-          GH_TOKEN: ${{ github.token }}
+
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "::error::Tag $TAG already exists"
+            exit 1
+          fi
 
       - name: Create GitHub release
-        run: |
-          gh release create "${{ steps.version.outputs.tag }}" \
-            --target main \
-            --generate-notes \
-            --title "${{ steps.version.outputs.tag }}"
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          gh release create "$TAG" \
+            --target "${{ github.sha }}" \
+            --generate-notes \
+            --title "$TAG"

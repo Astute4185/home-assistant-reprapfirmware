@@ -9,6 +9,87 @@ permissions:
   contents: read
 
 jobs:
+  version:
+    name: Version check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Require version bump for integration changes
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          changed_files="$(git diff --name-only "$BASE_SHA" "$HEAD_SHA")"
+
+          echo "Changed files:"
+          echo "$changed_files"
+
+          integration_changed=false
+
+          while IFS= read -r file; do
+            case "$file" in
+              custom_components/reprapfirmware/manifest.json)
+                ;;
+              custom_components/reprapfirmware/*)
+                integration_changed=true
+                ;;
+            esac
+          done <<< "$changed_files"
+
+          if [ "$integration_changed" = false ]; then
+            echo "No shipped integration changes. Version bump not required."
+            exit 0
+          fi
+
+          base_version="$(
+            git show "$BASE_SHA:custom_components/reprapfirmware/manifest.json" |
+            python -c 'import json,sys; print(json.load(sys.stdin)["version"])'
+          )"
+
+          head_version="$(
+            python -c '
+          import json
+          from pathlib import Path
+
+          print(
+              json.loads(
+                  Path(
+                      "custom_components/reprapfirmware/manifest.json"
+                  ).read_text(encoding="utf-8")
+              )["version"]
+          )
+          '
+          )"
+
+          echo "Base version: $base_version"
+          echo "PR version:   $head_version"
+
+          if [ "$base_version" = "$head_version" ]; then
+            echo "::error::Integration files changed but manifest version was not bumped."
+            exit 1
+          fi
+
+          python - "$base_version" "$head_version" <<'PY'
+          import sys
+
+          old = tuple(map(int, sys.argv[1].split(".")))
+          new = tuple(map(int, sys.argv[2].split(".")))
+
+          if new <= old:
+              raise SystemExit(
+                  f"::error::Manifest version must increase: "
+                  f"{sys.argv[1]} -> {sys.argv[2]}"
+              )
+
+          print(f"Version increased: {sys.argv[1]} -> {sys.argv[2]}")
+          PY
+
   repository:
     name: Repository checks
     runs-on: ubuntu-latest
@@ -24,7 +105,10 @@ jobs:
           cache: pip
 
       - name: Install validation dependencies
-        run: python -m pip install -r requirements-test.txt -r requirements-runtime.txt
+        run: |
+          python -m pip install \
+            -r requirements-test.txt \
+            -r requirements-runtime.txt
 
       - name: Run repository checks
         run: scripts/check
