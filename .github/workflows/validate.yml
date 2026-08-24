@@ -1,3 +1,14 @@
+name: Validate
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
   version:
     name: Version check
     runs-on: ubuntu-latest
@@ -45,10 +56,14 @@
             python -c '
           import json
           from pathlib import Path
-          print(json.loads(
-              Path("custom_components/reprapfirmware/manifest.json")
-              .read_text(encoding="utf-8")
-          )["version"])
+
+          print(
+              json.loads(
+                  Path(
+                      "custom_components/reprapfirmware/manifest.json"
+                  ).read_text(encoding="utf-8")
+              )["version"]
+          )
           '
           )"
 
@@ -60,4 +75,61 @@
             exit 1
           fi
 
-          echo "Manifest version changed: $base_version -> $head_version"
+          python - "$base_version" "$head_version" <<'PY'
+          import sys
+
+          old = tuple(map(int, sys.argv[1].split(".")))
+          new = tuple(map(int, sys.argv[2].split(".")))
+
+          if new <= old:
+              raise SystemExit(
+                  f"::error::Manifest version must increase: "
+                  f"{sys.argv[1]} -> {sys.argv[2]}"
+              )
+
+          print(f"Version increased: {sys.argv[1]} -> {sys.argv[2]}")
+          PY
+
+  repository:
+    name: Repository checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.14.2"
+          cache: pip
+
+      - name: Install validation dependencies
+        run: |
+          python -m pip install \
+            -r requirements-test.txt \
+            -r requirements-runtime.txt
+
+      - name: Run repository checks
+        run: scripts/check
+
+  hassfest:
+    name: Home Assistant hassfest
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Run Hassfest
+        uses: home-assistant/actions/hassfest@master
+
+  hacs:
+    name: HACS validation
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Run HACS validation
+        uses: hacs/action@main
+        with:
+          category: integration
