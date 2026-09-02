@@ -42,19 +42,52 @@
         "name": "Progress"
       },
       "print_duration": {
-        "name": "Print duration"
+        "name": "Job duration"
       },
       "estimated_remaining": {
         "name": "Estimated remaining"
       },
+      "estimated_remaining_filament": {
+        "name": "Time remaining (filament)"
+      },
+      "estimated_remaining_file": {
+        "name": "Time remaining (file progress)"
+      },
+      "estimated_remaining_slicer": {
+        "name": "Time remaining (slicer)"
+      },
+      "warm_up_duration": {
+        "name": "Warm-up time"
+      },
+      "layer_time": {
+        "name": "Current layer time"
+      },
+      "last_layer_time": {
+        "name": "Last layer time"
+      },
       "layer": {
         "name": "Layer"
+      },
+      "total_layers": {
+        "name": "Total layers"
+      },
+      "layers_remaining": {
+        "name": "Layers remaining"
       },
       "file_size": {
         "name": "File size"
       },
       "filament_used": {
         "name": "Filament used"
+      },
+      "total_filament": {
+        "name": "Total filament"
+      },
+      "filament_remaining": {
+        "name": "Filament remaining"
+      },
+      "layer_filament_used": {
+        "name": "Current layer filament"
       },
       "nozzle_temperature": {
         "name": "Nozzle temperature"

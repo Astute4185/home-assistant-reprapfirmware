@@ -16,9 +16,20 @@ class RepRapFirmwareData:
     progress: float | None
     print_duration: float | None
     estimated_remaining: float | None
+    estimated_remaining_filament: float | None
+    estimated_remaining_file: float | None
+    estimated_remaining_slicer: float | None
+    warm_up_duration: float | None
+    layer_time: float | None
+    last_layer_time: float | None
     layer: int | None
+    total_layers: int | None
+    layers_remaining: int | None
     file_size: int | None
     filament_used: float | None
+    total_filament: float | None
+    filament_remaining: float | None
+    layer_filament_used: float | None
     nozzle_temperature: float | None
     nozzle_target: float | None
     nozzle_heater_state: str | None
@@ -80,6 +91,12 @@ def parse_printer_data(
     file_obj = _as_dict(job_obj.get("file"))
     file_size = _as_int(file_obj.get("size")) or _as_int(file_info_obj.get("size"))
     file_position = _as_int(job_obj.get("filePosition"))
+    filament_used = _non_negative_float(job_obj.get("rawExtrusion"))
+    total_layers = _first_positive_int(
+        file_obj.get("numLayers"),
+        file_info_obj.get("numLayers"),
+    )
+    total_filament = _file_filament_total(file_obj, file_info_obj)
 
     axes = _as_list(move_obj.get("axes"))
     selected_fan = _select_fan(fans_list, selected_tool)
@@ -94,9 +111,20 @@ def parse_printer_data(
         progress=_calculate_progress(file_position, file_size),
         print_duration=_as_float(job_obj.get("duration")),
         estimated_remaining=_estimated_remaining(job_obj),
+        estimated_remaining_filament=_time_left(job_obj, "filament"),
+        estimated_remaining_file=_time_left(job_obj, "file"),
+        estimated_remaining_slicer=_time_left(job_obj, "slicer"),
+        warm_up_duration=_non_negative_float(job_obj.get("warmUpDuration")),
+        layer_time=_non_negative_float(job_obj.get("layerTime")),
+        last_layer_time=None,
         layer=_as_int(job_obj.get("layer")),
+        total_layers=total_layers,
+        layers_remaining=_layers_remaining(_as_int(job_obj.get("layer")), total_layers),
         file_size=file_size,
-        filament_used=_non_negative_float(job_obj.get("rawExtrusion")),
+        filament_used=filament_used,
+        total_filament=total_filament,
+        filament_remaining=_filament_remaining(filament_used, total_filament),
+        layer_filament_used=None,
         nozzle_temperature=_as_float(nozzle.get("current")),
         nozzle_target=_first_not_none(
             _heater_target(nozzle),
@@ -340,12 +368,60 @@ def _calculate_progress(position: int | None, size: int | None) -> float | None:
     return round(min(max(progress, 0.0), 100.0), 1)
 
 
+def _first_positive_int(*values: Any) -> int | None:
+    """Return the first positive integer value."""
+    for value in values:
+        parsed = _as_int(value)
+        if parsed is not None and parsed > 0:
+            return parsed
+    return None
+
+
+def _file_filament_total(
+    file_obj: dict[str, Any],
+    file_info_obj: dict[str, Any],
+) -> float | None:
+    """Return total slicer-reported filament for the current file in mm."""
+    for source in (file_obj, file_info_obj):
+        values = _as_list(source.get("filament"))
+        parsed = [
+            value for item in values if (value := _non_negative_float(item)) is not None
+        ]
+        if parsed:
+            return sum(parsed)
+    return None
+
+
+def _filament_remaining(
+    filament_used: float | None,
+    total_filament: float | None,
+) -> float | None:
+    """Return planned filament still to extrude in mm."""
+    if filament_used is None or total_filament is None:
+        return None
+    return max(total_filament - filament_used, 0.0)
+
+
+def _layers_remaining(layer: int | None, total_layers: int | None) -> int | None:
+    """Return the number of layers after the current layer."""
+    if layer is None or total_layers is None:
+        return None
+    return max(total_layers - layer, 0)
+
+
+def _time_left(job: dict[str, Any], key: str) -> float | None:
+    """Return one RepRapFirmware time-left estimate."""
+    value = _as_float(_as_dict(job.get("timesLeft")).get(key))
+    if value is None or value < 0:
+        return None
+    return value
+
+
 def _estimated_remaining(job: dict[str, Any]) -> float | None:
     """Return the best available RRF time-left estimate."""
-    times_left = _as_dict(job.get("timesLeft"))
     for key in ("slicer", "file", "filament"):
-        value = _as_float(times_left.get(key))
-        if value is not None and value >= 0:
+        value = _time_left(job, key)
+        if value is not None:
             return value
     return None
 
