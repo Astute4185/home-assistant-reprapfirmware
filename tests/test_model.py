@@ -13,11 +13,18 @@ def test_parse_active_print_data() -> None:
         },
         job={
             "duration": 120.5,
+            "warmUpDuration": 27,
             "filePosition": 250,
             "layer": 7,
+            "layerTime": 14,
             "rawExtrusion": 456.7,
             "timesLeft": {"slicer": 3600, "file": 3700, "filament": 3800},
-            "file": {"fileName": "cube.gcode", "size": 1000},
+            "file": {
+                "fileName": "cube.gcode",
+                "size": 1000,
+                "numLayers": 42,
+                "filament": [4000, 2000],
+            },
         },
         heat={
             "bedHeaterMapping": [[0]],
@@ -71,9 +78,20 @@ def test_parse_active_print_data() -> None:
     assert data.progress == 25.0
     assert data.print_duration == 120.5
     assert data.estimated_remaining == 3600.0
+    assert data.estimated_remaining_filament == 3800.0
+    assert data.estimated_remaining_file == 3700.0
+    assert data.estimated_remaining_slicer == 3600.0
+    assert data.warm_up_duration == 27.0
+    assert data.layer_time == 14.0
+    assert data.last_layer_time is None
     assert data.layer == 7
+    assert data.total_layers == 42
+    assert data.layers_remaining == 35
     assert data.file_size == 1000
     assert data.filament_used == 456.7
+    assert data.total_filament == 6000.0
+    assert data.filament_remaining == 5543.3
+    assert data.layer_filament_used is None
     assert data.nozzle_temperature == 209.7
     assert data.nozzle_target == 210.0
     assert data.nozzle_heater_state == "active"
@@ -157,13 +175,22 @@ def test_parse_falls_back_to_tool_and_fileinfo_metadata() -> None:
         move={},
         fans=[],
         board={},
-        file_info={"fileName": "/gcodes/cube.gcode", "size": 2000},
+        file_info={
+            "fileName": "/gcodes/cube.gcode",
+            "size": 2000,
+            "numLayers": 80,
+            "filament": [2500],
+        },
     )
 
     assert data.file_size == 2000
     assert data.progress == 25.0
     assert data.nozzle_target == 205.0
     assert data.bed_target == 60.0
+    assert data.total_layers == 80
+    assert data.layers_remaining is None
+    assert data.total_filament == 2500.0
+    assert data.filament_remaining is None
 
 
 def test_zero_heater_targets_are_treated_as_unset() -> None:
@@ -245,7 +272,20 @@ def test_parse_handles_missing_optional_data() -> None:
     assert data.status == "idle"
     assert data.progress is None
     assert data.job_name is None
+    assert data.estimated_remaining is None
+    assert data.estimated_remaining_filament is None
+    assert data.estimated_remaining_file is None
+    assert data.estimated_remaining_slicer is None
+    assert data.warm_up_duration is None
+    assert data.layer_time is None
+    assert data.last_layer_time is None
+    assert data.layer is None
+    assert data.total_layers is None
+    assert data.layers_remaining is None
     assert data.filament_used is None
+    assert data.total_filament is None
+    assert data.filament_remaining is None
+    assert data.layer_filament_used is None
     assert data.nozzle_temperature is None
     assert data.nozzle_heater_state is None
     assert data.bed_temperature is None
@@ -286,3 +326,39 @@ def test_progress_is_clamped_and_invalid_size_is_ignored() -> None:
 
     assert overrun.progress == 100.0
     assert no_size.progress is None
+
+
+def test_invalid_job_metrics_are_ignored_or_clamped() -> None:
+    """Invalid estimates are ignored and remaining values never go negative."""
+    data = parse_printer_data(
+        state={"status": "processing"},
+        job={
+            "duration": -1,
+            "warmUpDuration": -2,
+            "layer": 12,
+            "layerTime": -3,
+            "rawExtrusion": 1200,
+            "timesLeft": {"slicer": -1, "file": False, "filament": 90},
+            "file": {
+                "fileName": "cube.gcode",
+                "numLayers": 10,
+                "filament": [1000, -5, "bad"],
+            },
+        },
+        heat={},
+        tools=[],
+        move={},
+        fans=[],
+        board={},
+    )
+
+    assert data.print_duration == -1.0
+    assert data.estimated_remaining == 90.0
+    assert data.estimated_remaining_filament == 90.0
+    assert data.estimated_remaining_file is None
+    assert data.estimated_remaining_slicer is None
+    assert data.warm_up_duration is None
+    assert data.layer_time is None
+    assert data.layers_remaining == 0
+    assert data.total_filament == 1000.0
+    assert data.filament_remaining == 0.0

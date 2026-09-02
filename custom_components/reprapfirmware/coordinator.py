@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
+from dataclasses import replace
 from datetime import datetime
 
 from homeassistant.config_entries import ConfigEntry
@@ -63,6 +64,12 @@ class RepRapFirmwareCoordinator(DataUpdateCoordinator[RepRapFirmwareData]):
         self._board: object = {}
         self._macros: tuple[RepRapFirmwareMacro, ...] = ()
         self._macro_listeners: set[Callable[[], None]] = set()
+        self._tracked_job_name: str | None = None
+        self._tracked_layer: int | None = None
+        self._layer_start_extrusion: float | None = None
+        self._last_layer_time: float | None = None
+        self._observed_layer_time: float | None = None
+        self._last_job_duration: float | None = None
 
     @property
     def macros(self) -> tuple[RepRapFirmwareMacro, ...]:
@@ -157,12 +164,71 @@ class RepRapFirmwareCoordinator(DataUpdateCoordinator[RepRapFirmwareData]):
             filament_monitors=filament_monitors,
             file_info=file_info,
         )
+        data = self._apply_job_tracking(data)
         self.update_interval = (
             ACTIVE_POLL_INTERVAL
             if data.status in ACTIVE_PRINTER_STATES
             else IDLE_POLL_INTERVAL
         )
         return data
+
+    def _apply_job_tracking(self, data: RepRapFirmwareData) -> RepRapFirmwareData:
+        """Add values that require tracking successive standalone RRF polls."""
+        active_job = data.status in ACTIVE_PRINTER_STATES and data.job_name is not None
+        if not active_job:
+            self._tracked_job_name = None
+            self._tracked_layer = None
+            self._layer_start_extrusion = None
+            self._last_layer_time = None
+            self._observed_layer_time = None
+            self._last_job_duration = None
+            return replace(data, last_layer_time=None, layer_filament_used=None)
+
+        new_job = self._tracked_job_name != data.job_name
+        if (
+            not new_job
+            and self._last_job_duration is not None
+            and data.print_duration is not None
+            and data.print_duration < self._last_job_duration
+        ):
+            new_job = True
+
+        if new_job:
+            self._tracked_job_name = data.job_name
+            self._tracked_layer = data.layer
+            self._layer_start_extrusion = data.filament_used
+            self._last_layer_time = None
+            self._observed_layer_time = data.layer_time
+        elif data.layer is not None:
+            if self._tracked_layer is None:
+                self._tracked_layer = data.layer
+                self._layer_start_extrusion = data.filament_used
+                self._observed_layer_time = data.layer_time
+            elif data.layer != self._tracked_layer:
+                self._last_layer_time = self._observed_layer_time
+                self._tracked_layer = data.layer
+                self._layer_start_extrusion = data.filament_used
+                self._observed_layer_time = data.layer_time
+            elif data.layer_time is not None:
+                self._observed_layer_time = data.layer_time
+
+        layer_filament_used: float | None = None
+        if (
+            data.layer is not None
+            and data.filament_used is not None
+            and self._layer_start_extrusion is not None
+        ):
+            layer_filament_used = max(
+                data.filament_used - self._layer_start_extrusion,
+                0.0,
+            )
+
+        self._last_job_duration = data.print_duration
+        return replace(
+            data,
+            last_layer_time=self._last_layer_time,
+            layer_filament_used=layer_filament_used,
+        )
 
     async def async_refresh_macros(self) -> bool:
         """Refresh discovered macros without making printer state unavailable."""
