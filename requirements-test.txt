@@ -1,5 +1,5 @@
 # Home Assistant baseline used by the local validation environment.
-homeassistant==2026.9.2
+homeassistant==2026.9.3
 
 # Repository validation/test tooling.
 pip-audit
