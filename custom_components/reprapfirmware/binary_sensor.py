@@ -52,6 +52,12 @@ BINARY_SENSORS: tuple[RepRapFirmwareBinarySensorEntityDescription, ...] = (
         value_fn=lambda data: data.z_homed,
     ),
     RepRapFirmwareBinarySensorEntityDescription(
+        key="filament_present",
+        translation_key="filament_present",
+        value_fn=lambda data: data.filament_present,
+        exists_fn=lambda data: data.filament_present is not None,
+    ),
+    RepRapFirmwareBinarySensorEntityDescription(
         key="filament_monitor",
         translation_key="filament_monitor",
         device_class=BinarySensorDeviceClass.PROBLEM,
@@ -68,10 +74,11 @@ async def async_setup_entry(
 ) -> None:
     """Set up RepRapFirmware binary sensors from a config entry."""
     coordinator = entry.runtime_data
+    optional_keys = {"filament_monitor", "filament_present"}
     static_descriptions = [
         description
         for description in BINARY_SENSORS
-        if description.key != "filament_monitor"
+        if description.key not in optional_keys
     ]
     async_add_entities(
         [RepRapFirmwareOnlineSensor(entry)]
@@ -81,26 +88,32 @@ async def async_setup_entry(
         ]
     )
 
-    monitor_description = next(
+    optional_descriptions = [
         description
         for description in BINARY_SENSORS
-        if description.key == "filament_monitor"
-    )
-    monitor_added = False
+        if description.key in optional_keys
+    ]
+    added_optional_keys: set[str] = set()
 
     @callback
-    def add_filament_monitor_if_present() -> None:
-        nonlocal monitor_added
-        if monitor_added or not monitor_description.exists_fn(coordinator.data):
-            return
-        monitor_added = True
-        async_add_entities(
-            [RepRapFirmwareBinarySensor(coordinator, entry, monitor_description)]
-        )
+    def add_optional_sensors_if_present() -> None:
+        new_entities = []
+        for description in optional_descriptions:
+            if (
+                description.key in added_optional_keys
+                or not description.exists_fn(coordinator.data)
+            ):
+                continue
+            added_optional_keys.add(description.key)
+            new_entities.append(
+                RepRapFirmwareBinarySensor(coordinator, entry, description)
+            )
+        if new_entities:
+            async_add_entities(new_entities)
 
-    add_filament_monitor_if_present()
+    add_optional_sensors_if_present()
     entry.async_on_unload(
-        coordinator.async_add_listener(add_filament_monitor_if_present)
+        coordinator.async_add_listener(add_optional_sensors_if_present)
     )
 
 

@@ -117,6 +117,9 @@
       },
       "filament_monitor": {
         "name": "Filament monitor"
+      },
+      "filament_present": {
+        "name": "Filament present"
       }
     },
     "button": {

@@ -131,6 +131,14 @@ class RepRapFirmwareCoordinator(DataUpdateCoordinator[RepRapFirmwareData]):
                 err,
             )
 
+        filament_input: object = {}
+        try:
+            filament_input = await self.client.get_model("sensors.gpIn[3]")
+        except RepRapFirmwareError as err:
+            _LOGGER.debug(
+                "Unable to retrieve optional RepRapFirmware filament input: %s", err
+            )
+
         board = self._board
         if isinstance(self._board, dict) and isinstance(live_board, dict):
             board = {**self._board, **live_board}
@@ -155,6 +163,7 @@ class RepRapFirmwareCoordinator(DataUpdateCoordinator[RepRapFirmwareData]):
             fans=fans,
             board=board,
             filament_monitors=filament_monitors,
+            filament_input=filament_input,
             file_info=file_info,
         )
         self.update_interval = (
