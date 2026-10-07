@@ -99,9 +99,8 @@ async def async_setup_entry(
     def add_optional_sensors_if_present() -> None:
         new_entities = []
         for description in optional_descriptions:
-            if (
-                description.key in added_optional_keys
-                or not description.exists_fn(coordinator.data)
+            if description.key in added_optional_keys or not description.exists_fn(
+                coordinator.data
             ):
                 continue
             added_optional_keys.add(description.key)
