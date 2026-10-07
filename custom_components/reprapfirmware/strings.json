@@ -150,9 +150,6 @@
       },
       "filament_monitor": {
         "name": "Filament monitor"
-      },
-      "filament_present": {
-        "name": "Filament present"
       }
     },
     "button": {
@@ -231,6 +228,54 @@
     },
     "macro_not_found": {
       "message": "The RepRapFirmware macro {macro} is not currently discovered."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Object Model entities",
+        "description": "Expose additional scalar RepRapFirmware Object Model paths as Home Assistant entities.",
+        "menu_options": {
+          "add_object_model_entity": "Add Object Model entity",
+          "remove_object_model_entity": "Remove Object Model entity"
+        }
+      },
+      "add_object_model_entity": {
+        "title": "Add Object Model entity",
+        "description": "Configure a scalar RepRapFirmware Object Model path. Arrays and objects are not supported.",
+        "data": {
+          "path": "Object Model path",
+          "name": "Entity name",
+          "entity_type": "Entity type",
+          "unit": "Unit",
+          "invert": "Invert binary value"
+        },
+        "data_description": {
+          "path": "RepRapFirmware Object Model key, for example global.fsRunoutSeq or sensors.gpIn[3].value.",
+          "name": "Name shown for the entity in Home Assistant.",
+          "entity_type": "Expose the value as a sensor or binary sensor.",
+          "unit": "Optional unit for sensor entities. Ignored for binary sensors.",
+          "invert": "Invert true/false for binary sensors. Ignored for normal sensors."
+        }
+      },
+      "remove_object_model_entity": {
+        "title": "Remove Object Model entity",
+        "data": {
+          "path": "Object Model entity"
+        }
+      }
+    },
+    "error": {
+      "invalid_object_model_config": "The Object Model entity configuration is invalid.",
+      "object_model_path_exists": "This Object Model path is already configured.",
+      "cannot_read_object_model_path": "Unable to read this Object Model path from RepRapFirmware.",
+      "object_model_value_not_scalar": "This Object Model path returns an array or object. Only scalar values are supported.",
+      "object_model_value_not_binary": "The current value cannot be interpreted as a binary value.",
+      "object_model_value_is_boolean": "This path currently returns a Boolean. Configure it as a binary sensor."
+    },
+    "abort": {
+      "object_model_limit_reached": "The maximum number of configured Object Model entities has been reached.",
+      "no_object_model_entities": "There are no configured Object Model entities to remove."
     }
   }
 }

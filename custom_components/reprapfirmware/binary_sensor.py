@@ -14,9 +14,11 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import RepRapFirmwareConfigEntry
+from .const import ENTITY_TYPE_BINARY_SENSOR
 from .coordinator import RepRapFirmwareCoordinator
 from .entity import RepRapFirmwareEntity
 from .model import RepRapFirmwareData
+from .object_model import ObjectModelEntityConfig, object_model_binary_value
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -52,12 +54,6 @@ BINARY_SENSORS: tuple[RepRapFirmwareBinarySensorEntityDescription, ...] = (
         value_fn=lambda data: data.z_homed,
     ),
     RepRapFirmwareBinarySensorEntityDescription(
-        key="filament_present",
-        translation_key="filament_present",
-        value_fn=lambda data: data.filament_present,
-        exists_fn=lambda data: data.filament_present is not None,
-    ),
-    RepRapFirmwareBinarySensorEntityDescription(
         key="filament_monitor",
         translation_key="filament_monitor",
         device_class=BinarySensorDeviceClass.PROBLEM,
@@ -74,7 +70,7 @@ async def async_setup_entry(
 ) -> None:
     """Set up RepRapFirmware binary sensors from a config entry."""
     coordinator = entry.runtime_data
-    optional_keys = {"filament_monitor", "filament_present"}
+    optional_keys = {"filament_monitor"}
     static_descriptions = [
         description
         for description in BINARY_SENSORS
@@ -85,6 +81,11 @@ async def async_setup_entry(
         + [
             RepRapFirmwareBinarySensor(coordinator, entry, description)
             for description in static_descriptions
+        ]
+        + [
+            RepRapFirmwareObjectModelBinarySensor(coordinator, entry, config)
+            for config in coordinator.object_model_configs
+            if config.entity_type == ENTITY_TYPE_BINARY_SENSOR
         ]
     )
 
@@ -164,3 +165,46 @@ class RepRapFirmwareBinarySensor(RepRapFirmwareEntity, BinarySensorEntity):
             return None
         status = self.coordinator.data.filament_monitor_status
         return {"status": status} if status is not None else None
+
+
+class RepRapFirmwareObjectModelBinarySensor(RepRapFirmwareEntity, BinarySensorEntity):
+    """User-configured RepRapFirmware Object Model binary sensor."""
+
+    def __init__(
+        self,
+        coordinator: RepRapFirmwareCoordinator,
+        entry: RepRapFirmwareConfigEntry,
+        config: ObjectModelEntityConfig,
+    ) -> None:
+        """Initialize a configurable Object Model binary sensor."""
+        super().__init__(coordinator, entry, config.entity_key)
+        self._config = config
+        self._attr_name = config.name
+
+    @property
+    def available(self) -> bool:
+        """Return whether the printer and configured Object Model path are available."""
+        values = dict(self.coordinator.data.object_model_values)
+        value = values.get(self._config.path)
+        return (
+            super().available
+            and self._config.path in self.coordinator.data.object_model_available
+            and (
+                value is None
+                or object_model_binary_value(value, invert=self._config.invert)
+                is not None
+            )
+        )
+
+    @property
+    def is_on(self) -> bool | None:
+        """Return the normalized latest Object Model binary value."""
+        values = dict(self.coordinator.data.object_model_values)
+        return object_model_binary_value(
+            values.get(self._config.path), invert=self._config.invert
+        )
+
+    @property
+    def extra_state_attributes(self) -> dict[str, str]:
+        """Expose the source Object Model path."""
+        return {"object_model_path": self._config.path}

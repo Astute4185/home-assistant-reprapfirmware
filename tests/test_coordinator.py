@@ -118,3 +118,103 @@ def test_job_tracking_detects_same_filename_restarted_job() -> None:
     assert restarted.last_layer_time is None
     assert restarted.layer_filament_used == 0.0
     assert coordinator._tracked_layer == 1
+
+
+def test_custom_object_model_reads_are_collected() -> None:
+    """Configured scalar paths are read independently from core printer parsing."""
+    import asyncio
+
+    from custom_components.reprapfirmware.const import (
+        ENTITY_TYPE_BINARY_SENSOR,
+        ENTITY_TYPE_SENSOR,
+    )
+    from custom_components.reprapfirmware.object_model import ObjectModelEntityConfig
+
+    class FakeClient:
+        async def get_model(self, path: str) -> object:
+            return {
+                "global.fsRunoutSeq": 4,
+                "global.fsBusy": False,
+            }[path]
+
+    coordinator = object.__new__(RepRapFirmwareCoordinator)
+    coordinator.client = FakeClient()
+    coordinator._object_model_configs = (
+        ObjectModelEntityConfig(
+            path="global.fsRunoutSeq",
+            name="Runout sequence",
+            entity_type=ENTITY_TYPE_SENSOR,
+        ),
+        ObjectModelEntityConfig(
+            path="global.fsBusy",
+            name="Busy",
+            entity_type=ENTITY_TYPE_BINARY_SENSOR,
+        ),
+    )
+
+    values, available = asyncio.run(coordinator._async_read_object_model_values())
+
+    assert values == (("global.fsRunoutSeq", 4), ("global.fsBusy", False))
+    assert available == frozenset({"global.fsRunoutSeq", "global.fsBusy"})
+
+
+def test_custom_object_model_failure_is_isolated() -> None:
+    """One unavailable custom path does not fail the coordinator's main poll."""
+    import asyncio
+
+    from custom_components.reprapfirmware.api import RepRapFirmwareError
+    from custom_components.reprapfirmware.const import ENTITY_TYPE_SENSOR
+    from custom_components.reprapfirmware.object_model import ObjectModelEntityConfig
+
+    class FakeClient:
+        async def get_model(self, path: str) -> object:
+            if path == "global.missing":
+                raise RepRapFirmwareError("missing")
+            return 7
+
+    coordinator = object.__new__(RepRapFirmwareCoordinator)
+    coordinator.client = FakeClient()
+    coordinator._object_model_configs = (
+        ObjectModelEntityConfig(
+            path="global.missing",
+            name="Missing",
+            entity_type=ENTITY_TYPE_SENSOR,
+        ),
+        ObjectModelEntityConfig(
+            path="global.present",
+            name="Present",
+            entity_type=ENTITY_TYPE_SENSOR,
+        ),
+    )
+
+    values, available = asyncio.run(coordinator._async_read_object_model_values())
+
+    assert values == (("global.missing", None), ("global.present", 7))
+    assert available == frozenset({"global.present"})
+
+
+def test_custom_object_model_non_scalar_is_marked_unavailable() -> None:
+    """A runtime array/object response cannot leak into an HA scalar entity."""
+    import asyncio
+
+    from custom_components.reprapfirmware.const import ENTITY_TYPE_SENSOR
+    from custom_components.reprapfirmware.object_model import ObjectModelEntityConfig
+
+    class FakeClient:
+        async def get_model(self, path: str) -> object:
+            return {"nested": True}
+
+    coordinator = object.__new__(RepRapFirmwareCoordinator)
+    coordinator.client = FakeClient()
+    coordinator._object_model_configs = (
+        ObjectModelEntityConfig(
+            path="global.dynamic",
+            name="Dynamic",
+            entity_type=ENTITY_TYPE_SENSOR,
+        ),
+    )
+
+    values, available = asyncio.run(coordinator._async_read_object_model_values())
+
+    assert values == (("global.dynamic", None),)
+    assert available == frozenset()
