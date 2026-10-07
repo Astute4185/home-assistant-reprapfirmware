@@ -1,7 +1,9 @@
 {
   "domain": "reprapfirmware",
   "name": "RepRapFirmware",
-  "codeowners": ["@Astute4185"],
+  "codeowners": [
+    "@Astute4185"
+  ],
   "config_flow": true,
   "documentation": "https://github.com/Astute4185/home-assistant-reprapfirmware",
   "integration_type": "device",

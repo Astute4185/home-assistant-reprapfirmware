@@ -47,6 +47,7 @@ class RepRapFirmwareData:
     speed_factor: float | None
     extrusion_factor: float | None
     filament_monitor_status: str | None
+    filament_present: bool | None
     mcu_temperature: float | None
     input_voltage: float | None
     uptime: float | None
@@ -65,6 +66,7 @@ def parse_printer_data(
     fans: Any,
     board: Any,
     filament_monitors: Any = None,
+    filament_input: Any = None,
     file_info: Any = None,
 ) -> RepRapFirmwareData:
     """Normalize selected RepRapFirmware Object Model branches."""
@@ -76,6 +78,7 @@ def parse_printer_data(
     fans_list = _as_list(fans)
     board_obj = _as_dict(board)
     monitors_list = _as_list(filament_monitors)
+    filament_input_obj = _as_dict(filament_input)
     file_info_obj = _as_dict(file_info)
 
     current_tool = _as_int(state_obj.get("currentTool"))
@@ -145,6 +148,7 @@ def parse_printer_data(
         speed_factor=_factor_percent(move_obj.get("speedFactor")),
         extrusion_factor=_factor_percent(selected_extruder.get("factor")),
         filament_monitor_status=_as_str(monitor.get("status")),
+        filament_present=_as_binary_input(filament_input_obj.get("value")),
         mcu_temperature=_nested_current(board_obj, "mcuTemp"),
         input_voltage=_nested_current(board_obj, "vIn"),
         uptime=_non_negative_float(state_obj.get("upTime")),
@@ -198,6 +202,18 @@ def _as_int(value: Any) -> int | None:
 
 def _as_bool(value: Any) -> bool | None:
     return value if isinstance(value, bool) else None
+
+
+def _as_binary_input(value: Any) -> bool | None:
+    """Normalize an RRF digital gpIn value to a Home Assistant Boolean."""
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, int | float) and not isinstance(value, bool):
+        if value == 0:
+            return False
+        if value == 1:
+            return True
+    return None
 
 
 def _select_tool(tools: list[Any], current_tool: int | None) -> dict[str, Any]:
