@@ -38,3 +38,12 @@ def test_manifest_version_is_semver() -> None:
     """The custom integration version must be a three-part semantic version."""
     manifest = json.loads((INTEGRATION / "manifest.json").read_text(encoding="utf-8"))
     assert SEMVER.fullmatch(manifest["version"]) is not None
+
+
+def test_object_model_feature_has_no_printer_specific_gp_input() -> None:
+    """Generic Object Model support must not hard-code one printer's GP input."""
+    coordinator = (INTEGRATION / "coordinator.py").read_text(encoding="utf-8")
+    binary_sensor = (INTEGRATION / "binary_sensor.py").read_text(encoding="utf-8")
+
+    assert 'get_model("sensors.gpIn[3]")' not in coordinator
+    assert 'key="filament_present"' not in binary_sensor

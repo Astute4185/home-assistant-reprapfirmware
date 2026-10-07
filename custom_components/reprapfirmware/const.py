@@ -6,6 +6,17 @@ DOMAIN = "reprapfirmware"
 
 CONF_USE_SSL = "use_ssl"
 
+CONF_OBJECT_MODEL_ENTITIES = "object_model_entities"
+CONF_OBJECT_MODEL_PATH = "path"
+CONF_OBJECT_MODEL_NAME = "name"
+CONF_OBJECT_MODEL_ENTITY_TYPE = "entity_type"
+CONF_OBJECT_MODEL_UNIT = "unit"
+CONF_OBJECT_MODEL_INVERT = "invert"
+
+ENTITY_TYPE_SENSOR = "sensor"
+ENTITY_TYPE_BINARY_SENSOR = "binary_sensor"
+MAX_OBJECT_MODEL_ENTITIES = 20
+
 ATTR_GCODE = "gcode"
 ATTR_MACRO = "macro"
 SERVICE_RUN_MACRO = "run_macro"

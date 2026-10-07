@@ -25,9 +25,11 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.typing import StateType
 
 from . import RepRapFirmwareConfigEntry
+from .const import ENTITY_TYPE_SENSOR
 from .coordinator import RepRapFirmwareCoordinator
 from .entity import RepRapFirmwareEntity
 from .model import RepRapFirmwareData
+from .object_model import ObjectModelEntityConfig, object_model_sensor_value
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -298,9 +300,15 @@ async def async_setup_entry(
 ) -> None:
     """Set up RepRapFirmware sensors from a config entry."""
     coordinator = entry.runtime_data
-    async_add_entities(
+    entities: list[SensorEntity] = [
         RepRapFirmwareSensor(coordinator, entry, description) for description in SENSORS
+    ]
+    entities.extend(
+        RepRapFirmwareObjectModelSensor(coordinator, entry, config)
+        for config in coordinator.object_model_configs
+        if config.entity_type == ENTITY_TYPE_SENSOR
     )
+    async_add_entities(entities)
 
 
 class RepRapFirmwareSensor(RepRapFirmwareEntity, SensorEntity):
@@ -329,3 +337,41 @@ class RepRapFirmwareSensor(RepRapFirmwareEntity, SensorEntity):
         if self.entity_description.attributes_fn is None:
             return None
         return self.entity_description.attributes_fn(self.coordinator.data)
+
+
+class RepRapFirmwareObjectModelSensor(RepRapFirmwareEntity, SensorEntity):
+    """User-configured scalar RepRapFirmware Object Model sensor."""
+
+    def __init__(
+        self,
+        coordinator: RepRapFirmwareCoordinator,
+        entry: RepRapFirmwareConfigEntry,
+        config: ObjectModelEntityConfig,
+    ) -> None:
+        """Initialize a configurable Object Model sensor."""
+        super().__init__(coordinator, entry, config.entity_key)
+        self._config = config
+        self._attr_name = config.name
+        self._attr_native_unit_of_measurement = config.unit
+
+    @property
+    def available(self) -> bool:
+        """Return whether the printer and configured Object Model path are available."""
+        values = dict(self.coordinator.data.object_model_values)
+        value = values.get(self._config.path)
+        return (
+            super().available
+            and self._config.path in self.coordinator.data.object_model_available
+            and (value is None or object_model_sensor_value(value) is not None)
+        )
+
+    @property
+    def native_value(self) -> StateType:
+        """Return the latest configured Object Model scalar."""
+        values = dict(self.coordinator.data.object_model_values)
+        return object_model_sensor_value(values.get(self._config.path))
+
+    @property
+    def extra_state_attributes(self) -> dict[str, StateType]:
+        """Expose the source Object Model path."""
+        return {"object_model_path": self._config.path}

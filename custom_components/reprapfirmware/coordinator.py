@@ -25,6 +25,12 @@ from .const import (
 )
 from .macro import RepRapFirmwareMacro, discover_macros
 from .model import RepRapFirmwareData, parse_printer_data
+from .object_model import (
+    ObjectModelEntityConfig,
+    ObjectModelScalar,
+    is_object_model_scalar,
+    object_model_configs_from_options,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -70,11 +76,54 @@ class RepRapFirmwareCoordinator(DataUpdateCoordinator[RepRapFirmwareData]):
         self._last_layer_time: float | None = None
         self._observed_layer_time: float | None = None
         self._last_job_duration: float | None = None
+        self._object_model_configs = object_model_configs_from_options(entry.options)
 
     @property
     def macros(self) -> tuple[RepRapFirmwareMacro, ...]:
         """Return the currently discovered top-level macros."""
         return self._macros
+
+    @property
+    def object_model_configs(self) -> tuple[ObjectModelEntityConfig, ...]:
+        """Return user-configured Object Model entities."""
+        return self._object_model_configs
+
+    async def _async_read_object_model_values(
+        self,
+    ) -> tuple[
+        tuple[tuple[str, ObjectModelScalar], ...],
+        frozenset[str],
+    ]:
+        """Read configured scalar Object Model paths without failing core polling."""
+        values: list[tuple[str, ObjectModelScalar]] = []
+        available: set[str] = set()
+
+        for config in self._object_model_configs:
+            try:
+                value = await self.client.get_model(config.path)
+            except RepRapFirmwareError as err:
+                _LOGGER.debug(
+                    "Unable to retrieve optional RepRapFirmware Object Model path "
+                    "%s: %s",
+                    config.path,
+                    err,
+                )
+                values.append((config.path, None))
+                continue
+
+            if not is_object_model_scalar(value):
+                _LOGGER.warning(
+                    "Configured RepRapFirmware Object Model path %s returned a "
+                    "non-scalar value",
+                    config.path,
+                )
+                values.append((config.path, None))
+                continue
+
+            values.append((config.path, value))
+            available.add(config.path)
+
+        return tuple(values), frozenset(available)
 
     async def _async_setup(self) -> None:
         """Load printer metadata and initial macro discovery."""
@@ -138,14 +187,6 @@ class RepRapFirmwareCoordinator(DataUpdateCoordinator[RepRapFirmwareData]):
                 err,
             )
 
-        filament_input: object = {}
-        try:
-            filament_input = await self.client.get_model("sensors.gpIn[3]")
-        except RepRapFirmwareError as err:
-            _LOGGER.debug(
-                "Unable to retrieve optional RepRapFirmware filament input: %s", err
-            )
-
         board = self._board
         if isinstance(self._board, dict) and isinstance(live_board, dict):
             board = {**self._board, **live_board}
@@ -170,8 +211,16 @@ class RepRapFirmwareCoordinator(DataUpdateCoordinator[RepRapFirmwareData]):
             fans=fans,
             board=board,
             filament_monitors=filament_monitors,
-            filament_input=filament_input,
             file_info=file_info,
+        )
+        (
+            object_model_values,
+            object_model_available,
+        ) = await self._async_read_object_model_values()
+        data = replace(
+            data,
+            object_model_values=object_model_values,
+            object_model_available=object_model_available,
         )
         data = self._apply_job_tracking(data)
         self.update_interval = (

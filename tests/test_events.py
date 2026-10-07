@@ -58,7 +58,6 @@ def _data(
         speed_factor=100.0,
         extrusion_factor=100.0,
         filament_monitor_status=None,
-        filament_present=None,
         mcu_temperature=45.0,
         input_voltage=24.0,
         uptime=3600.0,

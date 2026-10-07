@@ -270,6 +270,23 @@ Configuration fields include:
 
 The integration connects to RepRapFirmware using its HTTP session API and retains the session key only in memory.
 
+### Configurable Object Model entities
+
+Additional scalar RepRapFirmware Object Model paths can be exposed without adding printer-specific code to the integration. Open the configured RepRapFirmware integration and choose **Configure** to add or remove Object Model entities.
+
+Each configured path can be exposed as either a normal sensor or a binary sensor. Sensor entities may have an optional unit. Binary sensors support native booleans, `0` / `1`, and explicit boolean strings such as `true` / `false`, with optional inversion.
+
+Examples include:
+
+```text
+global.fsRunoutSeq
+global.fsBusy
+sensors.gpIn[3].value
+boards[0].mcuTemp.current
+```
+
+The integration assigns no machine-specific meaning to these paths. RepRapFirmware configuration defines what a value means, and Home Assistant automations decide how to use it. Arrays and objects are intentionally rejected; only scalar values are supported. A maximum of 20 custom paths may be configured per printer.
+
 ## Polling
 
 The integration uses Home Assistant's coordinated polling model rather than allowing individual entities to independently query the printer.
